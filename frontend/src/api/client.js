@@ -53,7 +53,15 @@ export const topicsAPI = {
 
 // Assessment API
 export const assessmentAPI = {
-    getDiagnostic: () => api.get('/assessment/diagnostic'),
+    getDiagnostic: (topicIds) => {
+        let url = '/assessment/diagnostic';
+        if (topicIds && topicIds.length > 0) {
+            const params = new URLSearchParams();
+            topicIds.forEach(id => params.append('topic_ids', id));
+            url += `?${params.toString()}`;
+        }
+        return api.get(url);
+    },
     submit: (answers) => api.post('/assessment/submit', { answers }),
     getTopicQuestions: (topicId) => api.get(`/assessment/topic/${topicId}`),
 };

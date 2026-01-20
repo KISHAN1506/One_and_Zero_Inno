@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from pydantic import BaseModel
@@ -34,8 +34,14 @@ SAMPLE_QUESTIONS = [
 ]
 
 @router.get("/diagnostic")
-async def get_diagnostic():
-    return {"questions": [{"id": q["id"], "topic_id": q["topic_id"], "topic": q["topic"], "text": q["text"], "options": q["options"], "difficulty": q["difficulty"]} for q in SAMPLE_QUESTIONS]}
+async def get_diagnostic(topic_ids: List[int] = Query(None)):
+    if topic_ids:
+        questions = [q for q in SAMPLE_QUESTIONS if q["topic_id"] in topic_ids]
+    else:
+        # If no topics selected (shouldn't happen with new flow, but fallback), return all
+        questions = SAMPLE_QUESTIONS
+        
+    return {"questions": [{"id": q["id"], "topic_id": q["topic_id"], "topic": q["topic"], "text": q["text"], "options": q["options"], "difficulty": q["difficulty"]} for q in questions]}
 
 @router.post("/submit")
 async def submit_assessment(submit_data: SubmitRequest, db: Session = Depends(get_db)):
