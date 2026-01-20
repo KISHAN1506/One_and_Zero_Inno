@@ -15,24 +15,20 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(auth.router)
 app.include_router(topics.router)
 app.include_router(assessment.router)
 app.include_router(roadmap.router)
 app.include_router(resources.router)
 app.include_router(chat.router)
+# TODO: Fix notes and subtopics routers - they have Pydantic validation issues
 
 @app.get("/")
 async def root():
     return {"message": "LearnPath API", "docs": "/docs"}
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}

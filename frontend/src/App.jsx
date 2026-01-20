@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import TopicSelection from './pages/TopicSelection';
 import Assessment from './pages/Assessment';
 import Roadmap from './pages/Roadmap';
 import Resources from './pages/Resources';
@@ -27,6 +28,7 @@ function App() {
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
                             <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/topic-selection" element={<TopicSelection />} />
                             <Route path="/assessment" element={<Assessment />} />
                             <Route path="/roadmap" element={<Roadmap />} />
                             <Route path="/resources/:topicId" element={<Resources />} />

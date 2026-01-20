@@ -18,12 +18,14 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    language_preference: str = "en"  # "en" or "hi"
 
 class UserResponse(BaseModel):
     id: int
     name: str
     email: str
     token: str
+    language_preference: str = "en"
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -59,12 +61,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user_data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(name=user_data.name, email=user_data.email, hashed_password=get_password_hash(user_data.password))
+    user = User(name=user_data.name, email=user_data.email, hashed_password=get_password_hash(user_data.password), language_preference=user_data.language_preference)
     db.add(user)
     db.commit()
     db.refresh(user)
     token = create_access_token(data={"sub": user.email})
-    return UserResponse(id=user.id, name=user.name, email=user.email, token=token)
+    return UserResponse(id=user.id, name=user.name, email=user.email, token=token, language_preference=user.language_preference)
 
 @router.post("/login", response_model=UserResponse)
 async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
@@ -72,7 +74,7 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     token = create_access_token(data={"sub": user.email})
-    return UserResponse(id=user.id, name=user.name, email=user.email, token=token)
+    return UserResponse(id=user.id, name=user.name, email=user.email, token=token, language_preference=user.language_preference)
 
 @router.get("/profile")
 async def get_profile(current_user: User = Depends(get_current_user)):

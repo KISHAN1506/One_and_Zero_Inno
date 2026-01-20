@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     CheckCircle2, Circle, Lock, ArrowRight, Play, FileText,
-    RefreshCw, ChevronDown, ChevronUp, BookOpen
+    RefreshCw, ChevronDown, ChevronUp, BookOpen, CheckSquare, Square
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { roadmapAPI, topicsAPI } from '../api/client';
+import { roadmapAPI, topicsAPI, subtopicsAPI } from '../api/client';
 
 const Roadmap = () => {
     const { user } = useUser();
@@ -14,6 +14,8 @@ const Roadmap = () => {
     const [roadmap, setRoadmap] = useState(null);
     const [loading, setLoading] = useState(true);
     const [expandedTopic, setExpandedTopic] = useState(null);
+    const [subtopicsData, setSubtopicsData] = useState({});
+    const [loadingSubtopics, setLoadingSubtopics] = useState({});
 
     const sampleRoadmap = {
         subject: 'Data Structures & Algorithms',
@@ -25,8 +27,7 @@ const Roadmap = () => {
                 mastery: 0.75,
                 status: 'completed',
                 prerequisites: [],
-                subtopics: ['Array Basics', 'Two Pointers', 'Sliding Window', 'String Manipulation'],
-                resources: { videos: 2, notes: 1, problems: 8 },
+                resources: { videos: 3, notes: 1, problems: 6 },
             },
             {
                 id: 2,
@@ -35,7 +36,6 @@ const Roadmap = () => {
                 mastery: 0.45,
                 status: 'in-progress',
                 prerequisites: [1],
-                subtopics: ['Singly Linked List', 'Doubly Linked List', 'Cycle Detection', 'Reversal'],
                 resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
@@ -45,8 +45,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'unlocked',
                 prerequisites: [1, 2],
-                subtopics: ['Stack Operations', 'Queue Operations', 'Monotonic Stack', 'Deque'],
-                resources: { videos: 2, notes: 1, problems: 5 },
+                resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
                 id: 4,
@@ -55,8 +54,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [3],
-                subtopics: ['Base Cases', 'Recursion Tree', 'Backtracking', 'Memoization Intro'],
-                resources: { videos: 2, notes: 1, problems: 7 },
+                resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
                 id: 5,
@@ -65,8 +63,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4],
-                subtopics: ['Binary Trees', 'BST Operations', 'Traversals', 'Height & Depth'],
-                resources: { videos: 3, notes: 1, problems: 8 },
+                resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
                 id: 6,
@@ -75,7 +72,6 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [5],
-                subtopics: ['BFS', 'DFS', 'Connected Components', 'Cycle Detection in Graphs'],
                 resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
@@ -85,8 +81,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4],
-                subtopics: ['Bubble/Selection', 'Merge Sort', 'Quick Sort', 'Counting Sort'],
-                resources: { videos: 2, notes: 1, problems: 5 },
+                resources: { videos: 2, notes: 1, problems: 6 },
             },
             {
                 id: 8,
@@ -95,8 +90,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4, 7],
-                subtopics: ['1D DP', '2D DP', 'State Transition', 'Classic Problems'],
-                resources: { videos: 3, notes: 2, problems: 10 },
+                resources: { videos: 2, notes: 2, problems: 6 },
             },
         ],
     };
@@ -112,7 +106,15 @@ const Roadmap = () => {
                 const { data } = await roadmapAPI.get();
                 setRoadmap(data);
             } catch (err) {
-                setRoadmap(sampleRoadmap);
+                // Check if quiz was skipped - all topics start unlocked
+                const skippedQuiz = localStorage.getItem('skippedQuiz');
+                if (skippedQuiz) {
+                    const unlocked = sampleRoadmap.topics.map(t => ({ ...t, status: 'unlocked', mastery: 0 }));
+                    setRoadmap({ ...sampleRoadmap, topics: unlocked });
+                    localStorage.removeItem('skippedQuiz');
+                } else {
+                    setRoadmap(sampleRoadmap);
+                }
             } finally {
                 setLoading(false);
             }
@@ -120,6 +122,54 @@ const Roadmap = () => {
 
         fetchRoadmap();
     }, [user, navigate]);
+
+    const fetchSubtopics = async (topicId) => {
+        if (subtopicsData[topicId]) return;
+        
+        setLoadingSubtopics(prev => ({ ...prev, [topicId]: true }));
+        try {
+            const { data } = await subtopicsAPI.getByTopic(topicId);
+            setSubtopicsData(prev => ({ ...prev, [topicId]: data }));
+        } catch (err) {
+            // Fallback - will load from DEFAULT_SUBTOPICS on backend
+            console.error('Failed to load subtopics:', err);
+        } finally {
+            setLoadingSubtopics(prev => ({ ...prev, [topicId]: false }));
+        }
+    };
+
+    const handleToggleExpand = async (topicId) => {
+        if (expandedTopic === topicId) {
+            setExpandedTopic(null);
+        } else {
+            setExpandedTopic(topicId);
+            await fetchSubtopics(topicId);
+        }
+    };
+
+    const handleToggleSubtopic = async (subtopicId, currentCompleted) => {
+        try {
+            await subtopicsAPI.toggleComplete(subtopicId, !currentCompleted);
+            // Update local state
+            setSubtopicsData(prev => {
+                const updated = { ...prev };
+                for (const topicId in updated) {
+                    updated[topicId] = {
+                        ...updated[topicId],
+                        subtopics: updated[topicId].subtopics.map(st =>
+                            st.id === subtopicId ? { ...st, completed: !currentCompleted } : st
+                        ),
+                        completed: updated[topicId].subtopics.filter(st => 
+                            st.id === subtopicId ? !currentCompleted : st.completed
+                        ).length,
+                    };
+                }
+                return updated;
+            });
+        } catch (err) {
+            console.error('Failed to toggle subtopic:', err);
+        }
+    };
 
     if (loading) {
         return (
@@ -195,7 +245,10 @@ const Roadmap = () => {
                         topic={topic}
                         index={i}
                         expanded={expandedTopic === topic.id}
-                        onToggle={() => setExpandedTopic(expandedTopic === topic.id ? null : topic.id)}
+                        onToggle={() => handleToggleExpand(topic.id)}
+                        subtopicsData={subtopicsData[topic.id]}
+                        loadingSubtopics={loadingSubtopics[topic.id]}
+                        onToggleSubtopic={handleToggleSubtopic}
                     />
                 ))}
             </div>
@@ -203,7 +256,7 @@ const Roadmap = () => {
     );
 };
 
-const TopicCard = ({ topic, index, expanded, onToggle }) => {
+const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSubtopics, onToggleSubtopic }) => {
     const isLocked = topic.status === 'locked';
     const isCompleted = topic.status === 'completed';
     const isInProgress = topic.status === 'in-progress';
@@ -221,6 +274,10 @@ const TopicCard = ({ topic, index, expanded, onToggle }) => {
         if (isLocked) return <span className="badge badge-warning">Locked</span>;
         return <span className="badge badge-success">Unlocked</span>;
     };
+
+    const subtopicProgress = subtopicsData 
+        ? `${subtopicsData.completed || 0}/${subtopicsData.total || 0}` 
+        : '';
 
     return (
         <motion.div
@@ -302,7 +359,7 @@ const TopicCard = ({ topic, index, expanded, onToggle }) => {
                     )}
                 </div>
 
-                {/* Expanded Content */}
+                {/* Expanded Content with Subtopics */}
                 {expanded && !isLocked && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
@@ -314,30 +371,67 @@ const TopicCard = ({ topic, index, expanded, onToggle }) => {
                             borderTop: '1px solid var(--border)',
                         }}
                     >
-                        <h4 style={{ fontSize: '0.875rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
-                            SUBTOPICS
-                        </h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                            {topic.subtopics?.map((st, i) => (
-                                <span
-                                    key={i}
-                                    style={{
-                                        padding: '0.5rem 0.75rem',
-                                        background: 'var(--surface-hover)',
-                                        borderRadius: '0.5rem',
-                                        fontSize: '0.875rem',
-                                    }}
-                                >
-                                    {st}
-                                </span>
-                            ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h4 style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>
+                                SUBTOPICS {subtopicProgress && `(${subtopicProgress} completed)`}
+                            </h4>
                         </div>
+
+                        {loadingSubtopics ? (
+                            <div style={{ textAlign: 'center', padding: '1rem' }}>
+                                <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '2px', margin: '0 auto' }} />
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                                {subtopicsData?.subtopics?.map((st) => (
+                                    <div
+                                        key={st.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleSubtopic(st.id, st.completed);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            padding: '0.75rem',
+                                            background: st.completed ? 'rgba(34, 197, 94, 0.1)' : 'var(--surface-hover)',
+                                            borderRadius: '0.5rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            border: st.completed ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid transparent',
+                                        }}
+                                    >
+                                        {st.completed ? (
+                                            <CheckSquare size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                                        ) : (
+                                            <Square size={20} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                                        )}
+                                        <div>
+                                            <span style={{ 
+                                                fontWeight: 500,
+                                                textDecoration: st.completed ? 'line-through' : 'none',
+                                                opacity: st.completed ? 0.7 : 1,
+                                            }}>
+                                                {st.name}
+                                            </span>
+                                            {st.description && (
+                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                                                    {st.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <Link
                                 to={`/resources/${topic.id}`}
                                 className="btn-primary"
                                 style={{ flex: 1 }}
+                                onClick={(e) => e.stopPropagation()}
                             >
                                 <BookOpen size={18} /> Start Learning
                             </Link>
@@ -345,6 +439,7 @@ const TopicCard = ({ topic, index, expanded, onToggle }) => {
                                 to={`/assessment?topic=${topic.id}`}
                                 className="btn-secondary"
                                 style={{ flex: 1 }}
+                                onClick={(e) => e.stopPropagation()}
                             >
                                 <RefreshCw size={18} /> Practice
                             </Link>

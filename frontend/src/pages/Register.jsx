@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, AlertCircle, Globe } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { authAPI } from '../api/client';
 
@@ -10,6 +10,7 @@ const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [language, setLanguage] = useState('en');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useUser();
@@ -32,9 +33,9 @@ const Register = () => {
         setLoading(true);
 
         try {
-            const { data } = await authAPI.register(name, email, password);
+            const { data } = await authAPI.register(name, email, password, language);
             login(data);
-            navigate('/assessment');
+            navigate('/topic-selection');
         } catch (err) {
             setError(err.response?.data?.detail || 'Registration failed. Please try again.');
         } finally {
@@ -124,6 +125,52 @@ const Register = () => {
                                 style={{ paddingLeft: '3rem' }}
                             />
                         </div>
+                    </div>
+
+                    {/* Language Selection */}
+                    <div className="form-group">
+                        <label>Preferred Language</label>
+                        <div style={{ position: 'relative' }}>
+                            <Globe size={20} style={{
+                                position: 'absolute',
+                                left: '1rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: 'var(--text-dim)',
+                                zIndex: 1,
+                            }} />
+                            <select
+                                value={language}
+                                onChange={(e) => setLanguage(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.875rem 1rem 0.875rem 3rem',
+                                    borderRadius: '0.75rem',
+                                    border: '1px solid var(--border)',
+                                    background: 'var(--surface)',
+                                    color: 'var(--text)',
+                                    fontSize: '1rem',
+                                    cursor: 'pointer',
+                                    appearance: 'none',
+                                }}
+                            >
+                                <option value="en">🇺🇸 English</option>
+                                <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+                            </select>
+                            <div style={{
+                                position: 'absolute',
+                                right: '1rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                pointerEvents: 'none',
+                                color: 'var(--text-dim)',
+                            }}>
+                                ▼
+                            </div>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
+                            Video content and resources will be shown in your preferred language
+                        </p>
                     </div>
 
                     <div className="form-group">

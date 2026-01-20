@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, ArrowRight, Clock, Brain, Target } from 'lucide-react';
+import { ArrowRight, SkipForward, AlertCircle, Brain, Target, BookOpen } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { assessmentAPI } from '../api/client';
 
@@ -11,113 +11,31 @@ const Assessment = () => {
     const [questions, setQuestions] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState({});
+    const [skippedQuestions, setSkippedQuestions] = useState([]);
     const [showResult, setShowResult] = useState(false);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
-    // Sample questions for MVP (will be fetched from API)
-    const sampleQuestions = [
-        {
-            id: 1,
-            topic_id: 1,
-            topic: 'Arrays & Strings',
-            text: 'What is the time complexity of accessing an element in an array by index?',
-            options: ['O(1)', 'O(n)', 'O(log n)', 'O(n²)'],
-            correct: 0,
-            difficulty: 'easy',
-        },
-        {
-            id: 2,
-            topic_id: 1,
-            topic: 'Arrays & Strings',
-            text: 'Which technique is used to find pairs in a sorted array that sum to a target?',
-            options: ['Binary Search', 'Two Pointers', 'Sliding Window', 'Recursion'],
-            correct: 1,
-            difficulty: 'medium',
-        },
-        {
-            id: 3,
-            topic_id: 2,
-            topic: 'Linked Lists',
-            text: 'What is the time complexity of inserting at the beginning of a singly linked list?',
-            options: ['O(n)', 'O(1)', 'O(log n)', 'O(n²)'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-        {
-            id: 4,
-            topic_id: 2,
-            topic: 'Linked Lists',
-            text: 'How do you detect a cycle in a linked list efficiently?',
-            options: ['Hash Set', 'Floyd\'s Cycle Detection', 'BFS', 'DFS'],
-            correct: 1,
-            difficulty: 'medium',
-        },
-        {
-            id: 5,
-            topic_id: 3,
-            topic: 'Stacks & Queues',
-            text: 'Which data structure is used to implement function calls in recursion?',
-            options: ['Queue', 'Stack', 'Array', 'Tree'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-        {
-            id: 6,
-            topic_id: 3,
-            topic: 'Stacks & Queues',
-            text: 'What is the output of pushing 1, 2, 3 and then popping twice from a stack?',
-            options: ['1, 2', '3, 2', '2, 3', '1, 3'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-        {
-            id: 7,
-            topic_id: 4,
-            topic: 'Recursion',
-            text: 'What is the base case in calculating factorial recursively?',
-            options: ['n == 1', 'n == 0 or n == 1', 'n < 0', 'No base case needed'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-        {
-            id: 8,
-            topic_id: 5,
-            topic: 'Trees & BST',
-            text: 'In a Binary Search Tree, where are smaller elements stored?',
-            options: ['Right subtree', 'Left subtree', 'Root', 'Anywhere'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-        {
-            id: 9,
-            topic_id: 6,
-            topic: 'Graphs',
-            text: 'Which algorithm is used for shortest path in an unweighted graph?',
-            options: ['DFS', 'BFS', 'Dijkstra', 'Bellman-Ford'],
-            correct: 1,
-            difficulty: 'medium',
-        },
-        {
-            id: 10,
-            topic_id: 7,
-            topic: 'Sorting',
-            text: 'What is the average time complexity of Quick Sort?',
-            options: ['O(n)', 'O(n log n)', 'O(n²)', 'O(log n)'],
-            correct: 1,
-            difficulty: 'easy',
-        },
-    ];
-
     useEffect(() => {
         const fetchQuestions = async () => {
             try {
-                const { data } = await assessmentAPI.getDiagnostic();
-                setQuestions(data.questions);
+                // Check if specific topics were selected
+                const selectedTopics = localStorage.getItem('selectedTopics');
+                let url = '/assessment/diagnostic';
+                if (selectedTopics) {
+                    const topicIds = JSON.parse(selectedTopics).join(',');
+                    url = `/assessment/diagnostic?topic_ids=${topicIds}`;
+                }
+                
+                const { data } = await assessmentAPI.getDiagnostic(selectedTopics ? JSON.parse(selectedTopics) : null);
+                setQuestions(data.questions || []);
             } catch (err) {
-                // Use sample questions if API fails
-                setQuestions(sampleQuestions);
+                // Fallback questions
+                setQuestions([
+                    { id: 1, topic_id: 1, topic: 'Arrays & Strings', text: 'What is the time complexity of accessing an array by index?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(n²)'], correct: 0, difficulty: 'easy' },
+                    { id: 2, topic_id: 1, topic: 'Arrays & Strings', text: 'Two Pointers technique is best for?', options: ['Unsorted arrays', 'Sorted arrays', 'Linked lists', 'Trees'], correct: 1, difficulty: 'medium' },
+                ]);
             } finally {
                 setLoading(false);
             }
@@ -128,6 +46,19 @@ const Assessment = () => {
 
     const handleAnswer = (optionIndex) => {
         setAnswers({ ...answers, [questions[currentIndex].id]: optionIndex });
+    };
+
+    const handleSkipQuestion = () => {
+        const currentId = questions[currentIndex].id;
+        if (!skippedQuestions.includes(currentId)) {
+            setSkippedQuestions([...skippedQuestions, currentId]);
+        }
+        handleNext();
+    };
+
+    const handleSkipEntireQuiz = () => {
+        localStorage.setItem('skippedQuiz', 'true');
+        navigate('/roadmap');
     };
 
     const handleNext = () => {
@@ -142,15 +73,16 @@ const Assessment = () => {
         setSubmitting(true);
 
         try {
-            const { data } = await assessmentAPI.submit(answers);
+            const { data } = await assessmentAPI.submit({ answers, skipped: skippedQuestions });
             setResults(data);
         } catch (err) {
             // Calculate results locally if API fails
             const topicScores = {};
             questions.forEach((q) => {
+                if (skippedQuestions.includes(q.id)) return;
                 const isCorrect = answers[q.id] === q.correct;
                 if (!topicScores[q.topic]) {
-                    topicScores[q.topic] = { correct: 0, total: 0 };
+                    topicScores[q.topic] = { correct: 0, total: 0, skipped: 0 };
                 }
                 topicScores[q.topic].total++;
                 if (isCorrect) topicScores[q.topic].correct++;
@@ -158,18 +90,29 @@ const Assessment = () => {
 
             const masteryByTopic = Object.entries(topicScores).map(([topic, scores]) => ({
                 topic,
-                mastery: scores.correct / scores.total,
+                mastery: scores.total > 0 ? scores.correct / scores.total : 0,
                 correct: scores.correct,
                 total: scores.total,
+                skipped: skippedQuestions.filter(id => questions.find(q => q.id === id && q.topic === topic)).length,
             }));
 
+            const answered = questions.length - skippedQuestions.length;
+            const correct = Object.values(answers).filter((a, i) => {
+                const q = questions[i];
+                return q && a === q.correct && !skippedQuestions.includes(q.id);
+            }).length;
+
             setResults({
-                overallScore: Object.values(answers).filter((a, i) => a === questions[i]?.correct).length / questions.length,
+                overallScore: answered > 0 ? correct / answered : 0,
                 topicMastery: masteryByTopic,
+                totalQuestions: questions.length,
+                answered,
+                skipped: skippedQuestions.length,
             });
         } finally {
             setSubmitting(false);
             setShowResult(true);
+            localStorage.removeItem('selectedTopics');
         }
     };
 
@@ -201,29 +144,21 @@ const Assessment = () => {
                         Your personalized roadmap has been generated
                     </p>
 
-                    {/* Overall Score */}
-                    <div style={{
-                        width: '150px',
-                        height: '150px',
-                        borderRadius: '50%',
-                        background: `conic-gradient(var(--primary) ${results.overallScore * 360}deg, var(--surface-hover) 0deg)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 2rem',
-                    }}>
-                        <div style={{
-                            width: '120px',
-                            height: '120px',
-                            borderRadius: '50%',
-                            background: 'var(--surface-solid)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexDirection: 'column',
-                        }}>
-                            <span style={{ fontSize: '2rem', fontWeight: 900 }}>{Math.round(results.overallScore * 100)}%</span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Overall</span>
+                    {/* Stats Row */}
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '2rem' }}>
+                        <div>
+                            <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--success)' }}>
+                                {Math.round(results.overallScore * 100)}%
+                            </p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Score</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '2rem', fontWeight: 900 }}>{results.answered || 0}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Answered</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--warning)' }}>{results.skipped || 0}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Skipped</p>
                         </div>
                     </div>
 
@@ -239,6 +174,7 @@ const Assessment = () => {
                                         fontWeight: 700,
                                     }}>
                                         {tm.correct}/{tm.total} ({Math.round(tm.mastery * 100)}%)
+                                        {tm.skipped > 0 && <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> • {tm.skipped} skipped</span>}
                                     </span>
                                 </div>
                                 <div className="progress-bar">
@@ -258,9 +194,40 @@ const Assessment = () => {
 
     const currentQuestion = questions[currentIndex];
     const progress = ((currentIndex + 1) / questions.length) * 100;
+    const isSkipped = skippedQuestions.includes(currentQuestion?.id);
 
     return (
         <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
+            {/* Skip Entire Quiz Banner */}
+            {currentIndex === 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-card"
+                    style={{ 
+                        marginBottom: '1.5rem', 
+                        padding: '1rem 1.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(234, 179, 8, 0.1)',
+                        borderColor: 'rgba(234, 179, 8, 0.3)'
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <BookOpen size={20} style={{ color: 'var(--warning)' }} />
+                        <span>Want to skip the assessment and start from basics?</span>
+                    </div>
+                    <button 
+                        onClick={handleSkipEntireQuiz}
+                        className="btn-secondary btn-small"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        <SkipForward size={16} /> Skip All
+                    </button>
+                </motion.div>
+            )}
+
             {/* Progress Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -270,6 +237,11 @@ const Assessment = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
                         Question {currentIndex + 1} of {questions.length}
+                        {skippedQuestions.length > 0 && (
+                            <span style={{ marginLeft: '0.5rem', color: 'var(--warning)' }}>
+                                ({skippedQuestions.length} skipped)
+                            </span>
+                        )}
                     </span>
                     <span className="badge badge-primary">
                         <Target size={12} /> {currentQuestion?.topic}
@@ -293,6 +265,12 @@ const Assessment = () => {
                     exit={{ opacity: 0, x: -50 }}
                     className="glass-card"
                 >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                        <span className={`badge ${currentQuestion?.difficulty === 'easy' ? 'badge-success' : 'badge-warning'}`}>
+                            {currentQuestion?.difficulty}
+                        </span>
+                    </div>
+
                     <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem', lineHeight: 1.4 }}>
                         {currentQuestion?.text}
                     </h2>
@@ -341,20 +319,30 @@ const Assessment = () => {
                         ))}
                     </div>
 
-                    <button
-                        onClick={handleNext}
-                        disabled={answers[currentQuestion?.id] === undefined || submitting}
-                        className="btn-primary w-full"
-                        style={{ marginTop: '2rem' }}
-                    >
-                        {submitting ? (
-                            <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
-                        ) : currentIndex === questions.length - 1 ? (
-                            <>Submit Assessment</>
-                        ) : (
-                            <>Next Question <ArrowRight size={20} /></>
-                        )}
-                    </button>
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                        <button
+                            onClick={handleSkipQuestion}
+                            className="btn-secondary"
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                        >
+                            <SkipForward size={18} /> Skip Question
+                        </button>
+                        <button
+                            onClick={handleNext}
+                            disabled={answers[currentQuestion?.id] === undefined || submitting}
+                            className="btn-primary"
+                            style={{ flex: 2 }}
+                        >
+                            {submitting ? (
+                                <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
+                            ) : currentIndex === questions.length - 1 ? (
+                                <>Submit Assessment</>
+                            ) : (
+                                <>Next Question <ArrowRight size={20} /></>
+                            )}
+                        </button>
+                    </div>
                 </motion.div>
             </AnimatePresence>
         </div>
