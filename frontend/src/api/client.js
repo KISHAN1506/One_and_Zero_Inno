@@ -100,4 +100,9 @@ export const chatAPI = {
     send: (message, topicId) => api.post('/chat', { message, topic_id: topicId }),
 };
 
+export const recommendationsAPI = {
+    get: () => api.get('/recommendations'),
+    generate: () => api.post('/recommendations/generate'),
+};
+
 export default api;

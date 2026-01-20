@@ -14,6 +14,9 @@ class User(Base):
     progress = relationship("UserProgress", back_populates="user")
     notes = relationship("UserNote", back_populates="user")
     subtopic_progress = relationship("SubtopicProgress", back_populates="user")
+    recommendations = relationship("Recommendation", back_populates="user")
+    tag_mastery = relationship("UserTagMastery", back_populates="user")
+    quiz_attempts = relationship("QuizAttempt", back_populates="user")
 
 class Topic(Base):
     __tablename__ = "topics"
@@ -58,6 +61,8 @@ class Question(Base):
     options_hi = Column(JSON, nullable=True)  # Hindi options
     correct_answer = Column(Integer)
     difficulty = Column(String, default="medium")
+    tags = Column(JSON, default=[])  # e.g., ["Arrays", "Two Pointers"]
+    difficulty_score = Column(Integer, default=5)  # 1-10
     topic = relationship("Topic", back_populates="questions")
 
 class Resource(Base):
@@ -113,3 +118,61 @@ class QuestionAttempt(Base):
     is_correct = Column(Boolean)
     skipped = Column(Boolean, default=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class UserTagMastery(Base):
+    """Tracks mastery of specific concepts (tags) like 'Two Pointers'"""
+    __tablename__ = "user_tag_mastery"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    tag = Column(String, index=True)
+    mastery_score = Column(Float, default=0.0)  # 0.0 to 1.0
+    attempts = Column(Integer, default=0)
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="tag_mastery")
+
+class Recommendation(Base):
+    """Stores AI or rule-based recommendations for the user"""
+    __tablename__ = "recommendations"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    type = Column(String)  # 'question', 'video', 'topic_focus'
+    
+    # Content details (stored to avoid complex joins and external API calls on read)
+    content_id = Column(Integer, nullable=True)  # ID of question/resource if internal
+    title = Column(String)
+    description = Column(String)  # The 'Why' reason
+    action_url = Column(String, nullable=True)  # URL for video or route for question
+    
+    # Metadata
+    source = Column(String)  # 'ai' or 'rule_based'
+    priority = Column(Integer, default=1)  # 1 (Low) to 5 (High)
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)  # Recommendations can expire
+    
+    user = relationship("User", back_populates="recommendations")
+
+class QuizAttempt(Base):
+    """Stores quiz attempt history for users"""
+    __tablename__ = "quiz_attempts"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Summary scores
+    overall_score = Column(Float)  # 0.0 to 1.0
+    total_questions = Column(Integer)
+    correct_count = Column(Integer)
+    incorrect_count = Column(Integer)
+    skipped_count = Column(Integer)
+    
+    # Detailed data stored as JSON
+    topic_mastery = Column(JSON)  # List of {topic, mastery, correct, total}
+    incorrect_questions = Column(JSON)  # List of {id, topic, question, your_answer, correct_answer}
+    detailed_report = Column(JSON)  # Full question-by-question breakdown
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    quiz_type = Column(String, default="diagnostic")  # diagnostic, topic, reassess
+    
+    user = relationship("User", back_populates="quiz_attempts")
+

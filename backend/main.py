@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, topics, assessment, roadmap, resources, chat, notes, subtopics
+from routers import auth, topics, assessment, roadmap, resources, chat, notes, subtopics, recommendation
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -29,6 +29,7 @@ app.include_router(resources.router)
 app.include_router(chat.router)
 app.include_router(notes.router)
 app.include_router(subtopics.router)
+app.include_router(recommendation.router)
 
 @app.get("/")
 async def root():

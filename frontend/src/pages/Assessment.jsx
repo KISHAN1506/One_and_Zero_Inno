@@ -107,7 +107,8 @@ const Assessment = () => {
                 }
             }
 
-            const { data } = await assessmentAPI.submit({ answers, skipped: skippedQuestions });
+            const questionIds = questions.map(q => q.id);
+            const { data } = await assessmentAPI.submit({ answers, skipped: skippedQuestions, question_ids: questionIds });
             setResults(data);
             setShowResult(true);
         } catch (err) {
@@ -174,8 +175,10 @@ const Assessment = () => {
 
     // Results screen
     if (showResult && results) {
+        const showAnalysis = results.incorrectQuestions && results.incorrectQuestions.length > 0;
+        
         return (
-            <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div className="page-container" style={{ maxWidth: '900px', margin: '0 auto' }}>
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -195,14 +198,18 @@ const Assessment = () => {
                     {/* Stats Row */}
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '2rem' }}>
                         <div>
-                            <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--success)' }}>
+                            <p style={{ fontSize: '2rem', fontWeight: 900, color: results.overallScore >= 0.7 ? 'var(--success)' : results.overallScore >= 0.5 ? 'var(--warning)' : 'var(--error)' }}>
                                 {Math.round(results.overallScore * 100)}%
                             </p>
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Score</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '2rem', fontWeight: 900 }}>{results.answered || 0}</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Answered</p>
+                            <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--success)' }}>{results.correctCount || 0}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Correct</p>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--error)' }}>{results.incorrectCount || 0}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Incorrect</p>
                         </div>
                         <div>
                             <p style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--warning)' }}>{results.skipped || 0}</p>
@@ -222,7 +229,6 @@ const Assessment = () => {
                                         fontWeight: 700,
                                     }}>
                                         {tm.correct}/{tm.total} ({Math.round(tm.mastery * 100)}%)
-                                        {tm.skipped > 0 && <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> • {tm.skipped} skipped</span>}
                                     </span>
                                 </div>
                                 <div className="progress-bar">
@@ -232,9 +238,47 @@ const Assessment = () => {
                         ))}
                     </div>
 
-                    <button onClick={() => navigate('/roadmap')} className="btn-primary">
-                        View Your Roadmap <ArrowRight size={20} />
-                    </button>
+                    {/* Incorrect Questions Analysis */}
+                    {showAnalysis && (
+                        <div style={{ textAlign: 'left', marginBottom: '2rem', padding: '1.5rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '1rem', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                            <h3 style={{ marginBottom: '1rem', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <AlertCircle size={20} /> Questions to Review ({results.incorrectQuestions.length})
+                            </h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
+                                {results.incorrectQuestions.map((q, i) => (
+                                    <div key={i} style={{ 
+                                        padding: '1rem', 
+                                        background: 'var(--surface)', 
+                                        borderRadius: '0.75rem',
+                                        borderLeft: '4px solid var(--error)'
+                                    }}>
+                                        <p style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.95rem' }}>{q.question}</p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                                            <p style={{ color: 'var(--error)' }}>
+                                                ❌ Your answer: <strong>{q.your_answer}</strong>
+                                            </p>
+                                            <p style={{ color: 'var(--success)' }}>
+                                                ✓ Correct answer: <strong>{q.correct_answer}</strong>
+                                            </p>
+                                        </div>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
+                                            Topic: {q.topic}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                        <button onClick={() => navigate('/quiz-history')} className="btn-secondary">
+                            View Full History
+                        </button>
+                        <button onClick={() => navigate('/roadmap')} className="btn-primary">
+                            View Your Roadmap <ArrowRight size={20} />
+                        </button>
+                    </div>
                 </motion.div>
             </div>
         );

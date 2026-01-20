@@ -6,7 +6,8 @@ import {
     CheckCircle2, Circle, Lock, TrendingUp, AlertTriangle
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { subtopicsAPI } from '../api/client';
+import { subtopicsAPI, recommendationsAPI } from '../api/client';
+import RecommendationCard from '../components/RecommendationCard';
 
 // Default topics structure
 const DEFAULT_TOPICS = [
@@ -29,6 +30,7 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [overallProgress, setOverallProgress] = useState(0);
     const [completedSubtopics, setCompletedSubtopics] = useState(0);
+    const [recommendations, setRecommendations] = useState([]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -63,6 +65,16 @@ const Dashboard = () => {
                 });
 
                 const topicsData = await Promise.all(progressPromises);
+
+                // Fetch Recommendations (lazy load)
+                recommendationsAPI.get().then(({ data }) => {
+                    setRecommendations(data);
+                    if (data.length === 0) {
+                        recommendationsAPI.generate().then(() => {
+                            recommendationsAPI.get().then(({ data: newData }) => setRecommendations(newData));
+                        });
+                    }
+                }).catch(err => console.error("Recs error", err));
 
                 // Calculate overall progress
                 const totalCompleted = topicsData.reduce((sum, t) => sum + t.completed, 0);
@@ -257,6 +269,22 @@ const Dashboard = () => {
                                 </p>
                             </motion.div>
                         </Link>
+                        <Link to="/quiz-history" style={{ textDecoration: 'none' }}>
+                            <motion.div
+                                whileHover={{ scale: 1.02 }}
+                                className="glass-card"
+                                style={{
+                                    background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(139, 92, 246, 0.1))',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <BarChart3 size={32} style={{ color: 'var(--warning)', marginBottom: '1rem' }} />
+                                <h3 style={{ marginBottom: '0.5rem' }}>Quiz History</h3>
+                                <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
+                                    Review your past quiz attempts and reports
+                                </p>
+                            </motion.div>
+                        </Link>
                     </div>
                 </div>
 
@@ -302,6 +330,30 @@ const Dashboard = () => {
                                 </p>
                             </div>
                         )}
+                    </motion.section>
+
+                    {/* Personalized Recommendations */}
+                    <motion.section
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="glass-card"
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                            <Target size={20} style={{ color: 'var(--accent)' }} />
+                            <h3>Recommended for You</h3>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {recommendations.length > 0 ? (
+                                recommendations.map(rec => (
+                                    <RecommendationCard key={rec.id} recommendation={rec} />
+                                ))
+                            ) : (
+                                <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
+                                    Complete assessments to get personalized recommendations!
+                                </p>
+                            )}
+                        </div>
                     </motion.section>
 
                     {/* Next Up */}

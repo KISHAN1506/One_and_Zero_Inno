@@ -12,6 +12,7 @@ import Assessment from './pages/Assessment';
 import Roadmap from './pages/Roadmap';
 import Resources from './pages/Resources';
 import Chatbot from './pages/Chatbot';
+import QuizHistory from './pages/QuizHistory';
 
 function App() {
     return (
@@ -30,6 +31,7 @@ function App() {
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/topic-selection" element={<TopicSelection />} />
                             <Route path="/assessment" element={<Assessment />} />
+                            <Route path="/quiz-history" element={<QuizHistory />} />
                             <Route path="/roadmap" element={<Roadmap />} />
                             <Route path="/resources/:topicId" element={<Resources />} />
                             <Route path="/chat" element={<Chatbot />} />

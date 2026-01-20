@@ -3,9 +3,12 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 from database import get_db
-from models import Question, QuestionAttempt, UserProgress, User
+from models import Question, QuestionAttempt, UserProgress, User, QuizAttempt
 from routers.auth import get_current_user
+from services.recommendation import RecommendationService
 from datetime import datetime
+import random
+from question_bank import QUESTION_BANK
 
 router = APIRouter(prefix="/api/assessment", tags=["assessment"])
 
@@ -20,6 +23,7 @@ class QuestionResponse(BaseModel):
 class SubmitRequest(BaseModel):
     answers: Dict[str, int]
     skipped: List[int] = []
+    question_ids: List[int] = []  # IDs of questions that were shown
 
 class SkipQuestionRequest(BaseModel):
     question_id: int
@@ -27,73 +31,41 @@ class SkipQuestionRequest(BaseModel):
 class SkipAllRequest(BaseModel):
     start_from_basics: bool = True
 
-# Comprehensive sample questions - more questions per topic
-SAMPLE_QUESTIONS = [
-    # Arrays & Strings (Topic 1) - 5 questions
-    {"id": 1, "topic_id": 1, "topic": "Arrays & Strings", "text": "What is the time complexity of accessing an element in an array by index?", "options": ["O(1)", "O(n)", "O(log n)", "O(n²)"], "correct": 0, "difficulty": "easy"},
-    {"id": 2, "topic_id": 1, "topic": "Arrays & Strings", "text": "Which technique is used to find pairs in a sorted array that sum to a target?", "options": ["Binary Search", "Two Pointers", "Sliding Window", "Recursion"], "correct": 1, "difficulty": "medium"},
-    {"id": 3, "topic_id": 1, "topic": "Arrays & Strings", "text": "What is the sliding window technique best used for?", "options": ["Finding pairs", "Contiguous subarray problems", "Sorting", "Tree traversal"], "correct": 1, "difficulty": "medium"},
-    {"id": 4, "topic_id": 1, "topic": "Arrays & Strings", "text": "What algorithm finds maximum subarray sum in O(n)?", "options": ["Merge Sort", "Quick Sort", "Kadane's Algorithm", "Two Pointers"], "correct": 2, "difficulty": "medium"},
-    {"id": 5, "topic_id": 1, "topic": "Arrays & Strings", "text": "What is the space complexity of prefix sum array?", "options": ["O(1)", "O(n)", "O(log n)", "O(n²)"], "correct": 1, "difficulty": "easy"},
+# Number of questions to display per quiz (randomly selected from bank)
+QUESTIONS_PER_QUIZ = 40
+QUESTIONS_PER_TOPIC = 5  # 5 questions per topic for balanced quiz
+
+def get_random_questions(topic_ids: Optional[List[int]] = None):
+    """Select random questions from bank, balanced across topics"""
+    questions = []
     
-    # Linked Lists (Topic 2) - 5 questions
-    {"id": 6, "topic_id": 2, "topic": "Linked Lists", "text": "What is the time complexity of inserting at the head of a singly linked list?", "options": ["O(n)", "O(1)", "O(log n)", "O(n²)"], "correct": 1, "difficulty": "easy"},
-    {"id": 7, "topic_id": 2, "topic": "Linked Lists", "text": "Which algorithm detects a cycle in a linked list in O(1) space?", "options": ["Hash Set", "Floyd's Cycle Detection", "BFS", "DFS"], "correct": 1, "difficulty": "medium"},
-    {"id": 8, "topic_id": 2, "topic": "Linked Lists", "text": "How many pointers are typically needed to reverse a linked list iteratively?", "options": ["1", "2", "3", "4"], "correct": 2, "difficulty": "easy"},
-    {"id": 9, "topic_id": 2, "topic": "Linked Lists", "text": "What is the time complexity of finding the middle of a linked list using fast/slow pointers?", "options": ["O(n)", "O(n/2)", "O(log n)", "O(1)"], "correct": 0, "difficulty": "medium"},
-    {"id": 10, "topic_id": 2, "topic": "Linked Lists", "text": "In a doubly linked list, each node has how many pointers?", "options": ["1", "2", "3", "4"], "correct": 1, "difficulty": "easy"},
+    # Group questions by topic
+    topics = {}
+    for q in QUESTION_BANK:
+        if topic_ids and q["topic_id"] not in topic_ids:
+            continue
+        if q["topic_id"] not in topics:
+            topics[q["topic_id"]] = []
+        topics[q["topic_id"]].append(q)
     
-    # Stacks & Queues (Topic 3) - 5 questions
-    {"id": 11, "topic_id": 3, "topic": "Stacks & Queues", "text": "Which data structure is used to implement function calls in recursion?", "options": ["Queue", "Stack", "Array", "Tree"], "correct": 1, "difficulty": "easy"},
-    {"id": 12, "topic_id": 3, "topic": "Stacks & Queues", "text": "What is the output of pushing 1, 2, 3 and then popping twice from a stack?", "options": ["1, 2", "3, 2", "2, 3", "1, 3"], "correct": 1, "difficulty": "easy"},
-    {"id": 13, "topic_id": 3, "topic": "Stacks & Queues", "text": "Monotonic stack is used to find?", "options": ["Minimum element", "Next greater element", "Sorted order", "Middle element"], "correct": 1, "difficulty": "medium"},
-    {"id": 14, "topic_id": 3, "topic": "Stacks & Queues", "text": "Which data structure follows FIFO principle?", "options": ["Stack", "Queue", "Tree", "Graph"], "correct": 1, "difficulty": "easy"},
-    {"id": 15, "topic_id": 3, "topic": "Stacks & Queues", "text": "What problem can be solved using a stack?", "options": ["Shortest path", "Balanced parentheses", "Sorting", "Finding median"], "correct": 1, "difficulty": "easy"},
+    # Select random questions from each topic
+    for topic_id, topic_questions in topics.items():
+        count = min(QUESTIONS_PER_TOPIC, len(topic_questions))
+        selected = random.sample(topic_questions, count)
+        questions.extend(selected)
     
-    # Recursion & Backtracking (Topic 4) - 5 questions
-    {"id": 16, "topic_id": 4, "topic": "Recursion & Backtracking", "text": "What is the base case in calculating factorial recursively?", "options": ["n == 1", "n == 0 or n == 1", "n < 0", "No base case needed"], "correct": 1, "difficulty": "easy"},
-    {"id": 17, "topic_id": 4, "topic": "Recursion & Backtracking", "text": "What is the time complexity of recursive Fibonacci without memoization?", "options": ["O(n)", "O(n²)", "O(2^n)", "O(log n)"], "correct": 2, "difficulty": "medium"},
-    {"id": 18, "topic_id": 4, "topic": "Recursion & Backtracking", "text": "In backtracking, what do we do after exploring a path?", "options": ["Continue forward", "Undo the choice", "Start over", "Skip it"], "correct": 1, "difficulty": "medium"},
-    {"id": 19, "topic_id": 4, "topic": "Recursion & Backtracking", "text": "How many subsets does a set of n elements have?", "options": ["n", "n²", "2^n", "n!"], "correct": 2, "difficulty": "medium"},
-    {"id": 20, "topic_id": 4, "topic": "Recursion & Backtracking", "text": "N-Queens problem is solved using which technique?", "options": ["Dynamic Programming", "Greedy", "Backtracking", "Divide and Conquer"], "correct": 2, "difficulty": "medium"},
-    
-    # Trees & BST (Topic 5) - 5 questions
-    {"id": 21, "topic_id": 5, "topic": "Trees & BST", "text": "In a Binary Search Tree, where are smaller elements stored?", "options": ["Right subtree", "Left subtree", "Root", "Anywhere"], "correct": 1, "difficulty": "easy"},
-    {"id": 22, "topic_id": 5, "topic": "Trees & BST", "text": "Which traversal gives sorted order for a BST?", "options": ["Preorder", "Inorder", "Postorder", "Level order"], "correct": 1, "difficulty": "easy"},
-    {"id": 23, "topic_id": 5, "topic": "Trees & BST", "text": "What is the time complexity of search in a balanced BST?", "options": ["O(n)", "O(log n)", "O(n²)", "O(1)"], "correct": 1, "difficulty": "medium"},
-    {"id": 24, "topic_id": 5, "topic": "Trees & BST", "text": "Level order traversal uses which data structure?", "options": ["Stack", "Queue", "Array", "Linked List"], "correct": 1, "difficulty": "easy"},
-    {"id": 25, "topic_id": 5, "topic": "Trees & BST", "text": "What is the height of a tree with only root node?", "options": ["0", "1", "-1", "Undefined"], "correct": 0, "difficulty": "easy"},
-    
-    # Graphs (Topic 6) - 5 questions
-    {"id": 26, "topic_id": 6, "topic": "Graphs", "text": "Which algorithm is used for shortest path in an unweighted graph?", "options": ["DFS", "BFS", "Dijkstra", "Bellman-Ford"], "correct": 1, "difficulty": "medium"},
-    {"id": 27, "topic_id": 6, "topic": "Graphs", "text": "What is the space complexity of adjacency matrix?", "options": ["O(V)", "O(E)", "O(V²)", "O(V+E)"], "correct": 2, "difficulty": "medium"},
-    {"id": 28, "topic_id": 6, "topic": "Graphs", "text": "Which traversal can detect cycles in a directed graph?", "options": ["BFS only", "DFS only", "Both BFS and DFS", "Neither"], "correct": 2, "difficulty": "medium"},
-    {"id": 29, "topic_id": 6, "topic": "Graphs", "text": "Topological sort is applicable to?", "options": ["Any graph", "DAG only", "Cyclic graphs", "Trees only"], "correct": 1, "difficulty": "medium"},
-    {"id": 30, "topic_id": 6, "topic": "Graphs", "text": "BFS uses which data structure?", "options": ["Stack", "Queue", "Priority Queue", "Deque"], "correct": 1, "difficulty": "easy"},
-    
-    # Sorting (Topic 7) - 5 questions
-    {"id": 31, "topic_id": 7, "topic": "Sorting", "text": "What is the average time complexity of Quick Sort?", "options": ["O(n)", "O(n log n)", "O(n²)", "O(log n)"], "correct": 1, "difficulty": "easy"},
-    {"id": 32, "topic_id": 7, "topic": "Sorting", "text": "Which sorting algorithm is stable?", "options": ["Quick Sort", "Heap Sort", "Merge Sort", "Selection Sort"], "correct": 2, "difficulty": "medium"},
-    {"id": 33, "topic_id": 7, "topic": "Sorting", "text": "What is the space complexity of Merge Sort?", "options": ["O(1)", "O(log n)", "O(n)", "O(n²)"], "correct": 2, "difficulty": "medium"},
-    {"id": 34, "topic_id": 7, "topic": "Sorting", "text": "Which sorting algorithm has worst case O(n²)?", "options": ["Merge Sort", "Heap Sort", "Quick Sort", "Counting Sort"], "correct": 2, "difficulty": "medium"},
-    {"id": 35, "topic_id": 7, "topic": "Sorting", "text": "Counting Sort works best when?", "options": ["Data is random", "Range of values is small", "Data is large", "Data is sorted"], "correct": 1, "difficulty": "medium"},
-    
-    # Dynamic Programming (Topic 8) - 5 questions
-    {"id": 36, "topic_id": 8, "topic": "Dynamic Programming", "text": "DP is recursion plus?", "options": ["Iteration", "Memoization", "Sorting", "Hashing"], "correct": 1, "difficulty": "easy"},
-    {"id": 37, "topic_id": 8, "topic": "Dynamic Programming", "text": "What are the two approaches to DP?", "options": ["BFS and DFS", "Top-down and Bottom-up", "Greedy and Brute force", "Recursive and Iterative"], "correct": 1, "difficulty": "easy"},
-    {"id": 38, "topic_id": 8, "topic": "Dynamic Programming", "text": "LCS stands for?", "options": ["Longest Common Substring", "Longest Common Subsequence", "Least Common Subsequence", "Linear Common Sequence"], "correct": 1, "difficulty": "easy"},
-    {"id": 39, "topic_id": 8, "topic": "Dynamic Programming", "text": "What is the time complexity of LCS using DP?", "options": ["O(n)", "O(n²)", "O(mn)", "O(2^n)"], "correct": 2, "difficulty": "medium"},
-    {"id": 40, "topic_id": 8, "topic": "Dynamic Programming", "text": "0/1 Knapsack can be solved using?", "options": ["Greedy", "DP", "Divide and Conquer", "Both Greedy and DP"], "correct": 1, "difficulty": "medium"},
-]
+    # Shuffle final list
+    random.shuffle(questions)
+    return questions
 
 @router.get("/diagnostic")
 async def get_diagnostic(topic_ids: Optional[str] = None):
-    """Get diagnostic questions. Optionally filter by topic IDs (comma-separated)."""
-    questions = SAMPLE_QUESTIONS.copy()
-    
+    """Get diagnostic questions with random selection from bank."""
+    filter_ids = None
     if topic_ids:
-        ids = [int(x.strip()) for x in topic_ids.split(",")]
-        questions = [q for q in questions if q["topic_id"] in ids]
+        filter_ids = [int(x.strip()) for x in topic_ids.split(",")]
+    
+    questions = get_random_questions(filter_ids)
     
     return {
         "questions": [
@@ -107,31 +79,76 @@ async def get_diagnostic(topic_ids: Optional[str] = None):
             } for q in questions
         ],
         "total": len(questions),
-        "can_skip": True  # Indicates skip is available
+        "can_skip": True
     }
 
 @router.post("/submit")
-async def submit_assessment(submit_data: SubmitRequest, db: Session = Depends(get_db)):
+async def submit_assessment(
+    submit_data: SubmitRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     answers = submit_data.answers
     skipped_ids = submit_data.skipped
+    question_ids = submit_data.question_ids  # Questions that were shown
     topic_scores = {}
     skipped_count = 0
     
-    for q in SAMPLE_QUESTIONS:
+    # Build detailed question report
+    detailed_report = []
+    incorrect_questions = []
+    
+    # Filter to only questions that were shown (if provided)
+    questions_to_check = QUESTION_BANK
+    if question_ids:
+        questions_to_check = [q for q in QUESTION_BANK if q["id"] in question_ids]
+    
+    for q in questions_to_check:
         qid = str(q["id"])
         topic = q["topic"]
         
         if topic not in topic_scores:
             topic_scores[topic] = {"correct": 0, "total": 0, "skipped": 0}
         
+        question_report = {
+            "id": q["id"],
+            "topic": topic,
+            "text": q["text"],
+            "difficulty": q["difficulty"],
+            "options": q["options"],
+            "correct_answer_index": q["correct"],
+            "correct_answer_text": q["options"][q["correct"]],
+            "user_answer_index": None,
+            "user_answer_text": None,
+            "is_correct": None,
+            "is_skipped": False
+        }
+        
         if q["id"] in skipped_ids:
             topic_scores[topic]["skipped"] += 1
             skipped_count += 1
+            question_report["is_skipped"] = True
         elif qid in answers:
-            is_correct = answers[qid] == q["correct"]
+            user_answer = answers[qid]
+            is_correct = user_answer == q["correct"]
             topic_scores[topic]["total"] += 1
+            
+            question_report["user_answer_index"] = user_answer
+            question_report["user_answer_text"] = q["options"][user_answer] if 0 <= user_answer < len(q["options"]) else "Invalid"
+            question_report["is_correct"] = is_correct
+            
             if is_correct:
                 topic_scores[topic]["correct"] += 1
+            else:
+                incorrect_questions.append({
+                    "id": q["id"],
+                    "topic": topic,
+                    "question": q["text"],
+                    "your_answer": question_report["user_answer_text"],
+                    "correct_answer": question_report["correct_answer_text"]
+                })
+        
+        detailed_report.append(question_report)
     
     topic_mastery = []
     for t, s in topic_scores.items():
@@ -151,12 +168,47 @@ async def submit_assessment(submit_data: SubmitRequest, db: Session = Depends(ge
     total_correct = sum(s["correct"] for s in topic_scores.values())
     overall = total_correct / max(total_answered, 1)
     
+    # Save quiz attempt to history FIRST (before recommendations to ensure persistence)
+    try:
+        quiz_attempt = QuizAttempt(
+            user_id=current_user.id,
+            overall_score=overall,
+            total_questions=len(questions_to_check),
+            correct_count=total_correct,
+            incorrect_count=total_answered - total_correct,
+            skipped_count=skipped_count,
+            topic_mastery=topic_mastery,
+            incorrect_questions=incorrect_questions,
+            detailed_report=detailed_report,
+            quiz_type="diagnostic"
+        )
+        db.add(quiz_attempt)
+        db.commit()
+        db.refresh(quiz_attempt)
+        print(f"Quiz attempt {quiz_attempt.id} saved successfully for user {current_user.id}")
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR: Failed to save quiz attempt: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save quiz attempt: {str(e)}")
+    
+    # Generate recommendations based on quiz results (non-blocking)
+    try:
+        rec_service = RecommendationService(db, current_user.id)
+        await rec_service.generate_recommendations_from_assessment(topic_mastery)
+    except Exception as e:
+        print(f"Recommendation generation failed (non-blocking): {e}")
+    
     return {
+        "attemptId": quiz_attempt.id,
         "overallScore": overall, 
         "topicMastery": topic_mastery,
-        "totalQuestions": len(SAMPLE_QUESTIONS),
+        "totalQuestions": len(questions_to_check),
         "answered": total_answered,
-        "skipped": skipped_count
+        "skipped": skipped_count,
+        "correctCount": total_correct,
+        "incorrectCount": total_answered - total_correct,
+        "incorrectQuestions": incorrect_questions,
+        "detailedReport": detailed_report
     }
 
 @router.post("/skip-question")
@@ -215,3 +267,59 @@ async def get_reassess_questions(db: Session = Depends(get_db)):
         "total": len(questions),
         "can_skip": False
     }
+
+@router.get("/history")
+async def get_quiz_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all quiz attempts for the current user"""
+    attempts = db.query(QuizAttempt).filter(
+        QuizAttempt.user_id == current_user.id
+    ).order_by(QuizAttempt.created_at.desc()).all()
+    
+    return {
+        "attempts": [
+            {
+                "id": a.id,
+                "overallScore": a.overall_score,
+                "totalQuestions": a.total_questions,
+                "correctCount": a.correct_count,
+                "incorrectCount": a.incorrect_count,
+                "skippedCount": a.skipped_count,
+                "quizType": a.quiz_type,
+                "createdAt": a.created_at.isoformat() if a.created_at else None
+            } for a in attempts
+        ],
+        "total": len(attempts)
+    }
+
+@router.get("/history/{attempt_id}")
+async def get_quiz_attempt_detail(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed report for a specific quiz attempt"""
+    attempt = db.query(QuizAttempt).filter(
+        QuizAttempt.id == attempt_id,
+        QuizAttempt.user_id == current_user.id
+    ).first()
+    
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Quiz attempt not found")
+    
+    return {
+        "id": attempt.id,
+        "overallScore": attempt.overall_score,
+        "totalQuestions": attempt.total_questions,
+        "correctCount": attempt.correct_count,
+        "incorrectCount": attempt.incorrect_count,
+        "skippedCount": attempt.skipped_count,
+        "quizType": attempt.quiz_type,
+        "createdAt": attempt.created_at.isoformat() if attempt.created_at else None,
+        "topicMastery": attempt.topic_mastery,
+        "incorrectQuestions": attempt.incorrect_questions,
+        "detailedReport": attempt.detailed_report
+    }
+
