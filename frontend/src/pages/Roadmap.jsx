@@ -155,7 +155,7 @@ const Roadmap = () => {
     useEffect(() => {
         // Wait for UserContext to finish loading before checking auth
         if (userLoading) return;
-        
+
         if (!user) {
             navigate('/login');
             return;
@@ -167,11 +167,30 @@ const Roadmap = () => {
                 // Still use initial roadmap structure but apply any saved progress
                 const initialRoadmap = getInitialRoadmap();
                 setRoadmap(initialRoadmap);
+
+                // Pre-load all subtopics data to ensure progress bars are correct
+                const topicIds = initialRoadmap.topics.map(t => t.id);
+                try {
+                    const subtopicPromises = topicIds.map(id => subtopicsAPI.getByTopic(id));
+                    const results = await Promise.all(subtopicPromises);
+
+                    const newSubtopicsData = {};
+                    results.forEach((result, index) => {
+                        if (result.data) {
+                            newSubtopicsData[topicIds[index]] = result.data;
+                        }
+                    });
+
+                    setSubtopicsData(newSubtopicsData);
+                } catch (subErr) {
+                    console.error('Failed to pre-load subtopics:', subErr);
+                }
+
             } catch (err) {
                 // Check if quiz was skipped - all topics start unlocked from basics
                 const skippedQuiz = localStorage.getItem('skippedQuiz');
                 const initialRoadmap = getInitialRoadmap();
-                
+
                 if (skippedQuiz) {
                     // When skipping quiz, only first topic is unlocked, start from 0%
                     setRoadmap(initialRoadmap);
@@ -201,7 +220,7 @@ const Roadmap = () => {
 
     const fetchSubtopics = async (topicId) => {
         if (subtopicsData[topicId]) return;
-        
+
         setLoadingSubtopics(prev => ({ ...prev, [topicId]: true }));
         try {
             const { data } = await subtopicsAPI.getByTopic(topicId);
@@ -226,7 +245,7 @@ const Roadmap = () => {
     const handleToggleSubtopic = async (subtopicId, currentCompleted, topicId) => {
         try {
             await subtopicsAPI.toggleComplete(subtopicId, !currentCompleted);
-            
+
             // Update local subtopicsData state
             setSubtopicsData(prev => {
                 const updated = { ...prev };
@@ -235,7 +254,7 @@ const Roadmap = () => {
                         st.id === subtopicId ? { ...st, completed: !currentCompleted } : st
                     );
                     const completedCount = updatedSubtopics.filter(st => st.completed).length;
-                    
+
                     updated[topicId] = {
                         ...updated[topicId],
                         subtopics: updatedSubtopics,
@@ -246,6 +265,35 @@ const Roadmap = () => {
             });
         } catch (err) {
             console.error('Failed to toggle subtopic:', err);
+        }
+    };
+
+    const handleCompleteAllSubtopics = async (topicId) => {
+        try {
+            // Mark all subtopics for this topic as complete
+            const topicSubtopics = subtopicsData[topicId]?.subtopics || [];
+            const incompleteSubtopics = topicSubtopics.filter(st => !st.completed);
+
+            // Toggle each incomplete subtopic to complete
+            await Promise.all(
+                incompleteSubtopics.map(st => subtopicsAPI.toggleComplete(st.id, true))
+            );
+
+            // Update local state - mark all as completed
+            setSubtopicsData(prev => {
+                const updated = { ...prev };
+                if (updated[topicId]) {
+                    const updatedSubtopics = updated[topicId].subtopics.map(st => ({ ...st, completed: true }));
+                    updated[topicId] = {
+                        ...updated[topicId],
+                        subtopics: updatedSubtopics,
+                        completed: updatedSubtopics.length,
+                    };
+                }
+                return updated;
+            });
+        } catch (err) {
+            console.error('Failed to complete all subtopics:', err);
         }
     };
 
@@ -339,6 +387,7 @@ const Roadmap = () => {
                         subtopicsData={subtopicsData[topic.id]}
                         loadingSubtopics={loadingSubtopics[topic.id]}
                         onToggleSubtopic={(subtopicId, completed) => handleToggleSubtopic(subtopicId, completed, topic.id)}
+                        onCompleteAll={() => handleCompleteAllSubtopics(topic.id)}
                     />
                 ))}
             </div>
@@ -346,7 +395,7 @@ const Roadmap = () => {
     );
 };
 
-const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSubtopics, onToggleSubtopic }) => {
+const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSubtopics, onToggleSubtopic, onCompleteAll }) => {
     const isLocked = topic.status === 'locked';
     const isCompleted = topic.status === 'completed';
     const isInProgress = topic.status === 'in-progress';
@@ -365,8 +414,8 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
         return <span className="badge badge-success">Unlocked</span>;
     };
 
-    const subtopicProgress = subtopicsData 
-        ? `${subtopicsData.completed || 0}/${subtopicsData.total || 0}` 
+    const subtopicProgress = subtopicsData
+        ? `${subtopicsData.completed || 0}/${subtopicsData.total || 0}`
         : '';
 
     return (
@@ -465,6 +514,18 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
                             <h4 style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>
                                 SUBTOPICS {subtopicProgress && `(${subtopicProgress} completed)`}
                             </h4>
+                            {subtopicsData?.completed < subtopicsData?.total && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onCompleteAll();
+                                    }}
+                                    className="btn-secondary btn-small"
+                                    style={{ fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}
+                                >
+                                    <CheckSquare size={14} /> Complete All
+                                </button>
+                            )}
                         </div>
 
                         {loadingSubtopics ? (
@@ -476,14 +537,9 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
                                 {subtopicsData?.subtopics?.map((st) => (
                                     <div
                                         key={st.id}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onToggleSubtopic(st.id, st.completed);
-                                        }}
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '0.75rem',
                                             padding: '0.75rem',
                                             background: st.completed ? 'rgba(34, 197, 94, 0.1)' : 'var(--surface-hover)',
                                             borderRadius: '0.5rem',
@@ -491,26 +547,54 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
                                             transition: 'all 0.2s ease',
                                             border: st.completed ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid transparent',
                                         }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleSubtopic(st.id, st.completed);
+                                        }}
                                     >
-                                        {st.completed ? (
-                                            <CheckSquare size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                                        ) : (
-                                            <Square size={20} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-                                        )}
-                                        <div>
-                                            <span style={{ 
-                                                fontWeight: 500,
-                                                textDecoration: st.completed ? 'line-through' : 'none',
-                                                opacity: st.completed ? 0.7 : 1,
-                                            }}>
-                                                {st.name}
-                                            </span>
-                                            {st.description && (
-                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
-                                                    {st.description}
-                                                </p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                                            {st.completed ? (
+                                                <CheckSquare size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                                            ) : (
+                                                <Square size={20} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
                                             )}
+                                            <div>
+                                                <span style={{
+                                                    fontWeight: 500,
+                                                    textDecoration: st.completed ? 'line-through' : 'none',
+                                                    opacity: st.completed ? 0.7 : 1,
+                                                }}>
+                                                    {st.name}
+                                                </span>
+                                                {st.description && (
+                                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                                                        {st.description}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
+
+                                        {st.video_url && (
+                                            <a
+                                                href={st.video_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{
+                                                    padding: '0.5rem',
+                                                    borderRadius: '50%',
+                                                    background: 'var(--surface)',
+                                                    color: 'var(--primary)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    marginLeft: '0.5rem',
+                                                }}
+                                                title="Watch explanatory video"
+                                            >
+                                                <Play size={16} fill="currentColor" />
+                                            </a>
+                                        )}
                                     </div>
                                 ))}
                             </div>

@@ -19,19 +19,31 @@ const Assessment = () => {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
+    const useQuery = () => new URLSearchParams(window.location.search);
+    const query = useQuery();
+    const topicIdParam = query.get('topic');
+    const isReassessMode = query.get('mode') === 'reassess';
+
     useEffect(() => {
         const fetchTopics = async () => {
             try {
-                // Check if specific topics were selected
-                const selectedTopics = localStorage.getItem('selectedTopics');
-                let url = '/assessment/diagnostic';
-                if (selectedTopics) {
-                    const topicIds = JSON.parse(selectedTopics).join(',');
-                    url = `/assessment/diagnostic?topic_ids=${topicIds}`;
+                if (isReassessMode) {
+                    const { data } = await assessmentAPI.getReassess();
+                    setQuestions(data.questions || []);
+                } else {
+                    // Check if specific topics were selected
+                    const selectedTopics = localStorage.getItem('selectedTopics');
+                    let userSelectedTopics = null;
+
+                    if (topicIdParam) {
+                        userSelectedTopics = [parseInt(topicIdParam)];
+                    } else if (selectedTopics) {
+                        userSelectedTopics = JSON.parse(selectedTopics);
+                    }
+
+                    const { data } = await assessmentAPI.getDiagnostic(userSelectedTopics);
+                    setQuestions(data.questions || []);
                 }
-                
-                const { data } = await assessmentAPI.getDiagnostic(selectedTopics ? JSON.parse(selectedTopics) : null);
-                setQuestions(data.questions || []);
             } catch (err) {
                 // Fallback questions
                 setQuestions([
@@ -43,7 +55,7 @@ const Assessment = () => {
             }
         };
         fetchTopics();
-    }, []);
+    }, [topicIdParam, isReassessMode]);
 
     const handleAnswer = (optionIndex) => {
         setAnswers({ ...answers, [questions[currentIndex].id]: optionIndex });
@@ -73,6 +85,28 @@ const Assessment = () => {
     const handleSubmit = async () => {
         setSubmitting(true);
         try {
+            // For reassess mode, we calculate locally first to determine success immediatey
+            let calculatedResults = null;
+
+            if (isReassessMode) {
+                const answered = questions.length - skippedQuestions.length;
+                const correct = Object.values(answers).filter((a, i) => {
+                    const q = questions[i];
+                    return q && a === q.correct && !skippedQuestions.includes(q.id);
+                }).length;
+
+                const score = answered > 0 ? correct / answered : 0;
+
+                // If score >= 80%, mark all complete
+                if (score >= 0.8) {
+                    try {
+                        await subtopicsAPI.completeAll();
+                    } catch (e) {
+                        console.error("Failed to mark all as complete");
+                    }
+                }
+            }
+
             const { data } = await assessmentAPI.submit({ answers, skipped: skippedQuestions });
             setResults(data);
             setShowResult(true);
@@ -103,13 +137,25 @@ const Assessment = () => {
                 return q && a === q.correct && !skippedQuestions.includes(q.id);
             }).length;
 
-            setResults({
+            const finalResults = {
                 overallScore: answered > 0 ? correct / answered : 0,
                 topicMastery: masteryByTopic,
                 totalQuestions: questions.length,
                 answered,
                 skipped: skippedQuestions.length,
-            });
+            };
+
+            setResults(finalResults);
+
+            // Check success logic locally if API failed
+            if (isReassessMode && finalResults.overallScore >= 0.8) {
+                try {
+                    await subtopicsAPI.completeAll();
+                } catch (e) {
+                    console.error("Failed to mark all as complete");
+                }
+            }
+
             setShowResult(true);
         } finally {
             setSubmitting(false);
@@ -138,7 +184,9 @@ const Assessment = () => {
                 >
                     <Brain size={48} style={{ color: 'var(--primary)', marginBottom: '1.5rem' }} />
                     <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-                        Assessment <span className="grad-text">Complete!</span>
+                        {isReassessMode
+                            ? (results.overallScore >= 0.8 ? "Mastery Achieved!" : "Keep Learning!")
+                            : "Assessment Complete!"}
                     </h1>
                     <p style={{ color: 'var(--text-dim)', marginBottom: '2rem' }}>
                         Your personalized roadmap has been generated
@@ -204,8 +252,8 @@ const Assessment = () => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="glass-card"
-                    style={{ 
-                        marginBottom: '1.5rem', 
+                    style={{
+                        marginBottom: '1.5rem',
                         padding: '1rem 1.5rem',
                         display: 'flex',
                         alignItems: 'center',
@@ -218,7 +266,7 @@ const Assessment = () => {
                         <BookOpen size={20} style={{ color: 'var(--warning)' }} />
                         <span>Want to skip the assessment and start from basics?</span>
                     </div>
-                    <button 
+                    <button
                         onClick={handleSkipEntireQuiz}
                         className="btn-secondary btn-small"
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}

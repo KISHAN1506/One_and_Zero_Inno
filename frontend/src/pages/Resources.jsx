@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-    Play, FileText, ArrowLeft, CheckCircle, Circle, ExternalLink, 
+import {
+    Play, FileText, ArrowLeft, CheckCircle, Circle, ExternalLink,
     BookOpen, Edit3, Save, X, Plus, Trash2, Code
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { resourcesAPI, topicsAPI, notesAPI } from '../api/client';
+import { resourcesAPI, topicsAPI, notesAPI, subtopicsAPI } from '../api/client';
 import ReactMarkdown from 'react-markdown';
 
 const Resources = () => {
@@ -20,9 +20,13 @@ const Resources = () => {
     const [newNote, setNewNote] = useState('');
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [editingContent, setEditingContent] = useState('');
+    const [subtopicsWithVideos, setSubtopicsWithVideos] = useState([]);
 
     // Get user's language preference
     const userLanguage = user?.language_preference || localStorage.getItem('language') || 'en';
+
+    // LocalStorage key for notes backup
+    const notesStorageKey = `user_notes_topic_${topicId}`;
 
     useEffect(() => {
         const fetchData = async () => {
@@ -31,13 +35,31 @@ const Resources = () => {
                 const { data: resourceData } = await resourcesAPI.getByTopic(topicId, userLanguage);
                 setResources(resourceData);
 
+                // Fetch subtopics with videos
+                const { data: subtopicsData } = await subtopicsAPI.getByTopic(topicId);
+                setSubtopicsWithVideos(subtopicsData.subtopics || []);
+
                 // Fetch LeetCode problems
                 const { data: leetcodeData } = await topicsAPI.getLeetcode(topicId);
                 setLeetcodeProblems(leetcodeData.problems || []);
 
-                // Fetch notes
+                // Fetch notes from API
                 const { data: notesResult } = await notesAPI.getByTopic(topicId);
-                setNotesData(notesResult);
+
+                // Load user notes from localStorage as backup
+                const savedNotes = localStorage.getItem(`user_notes_topic_${topicId}`);
+                let userNotes = notesResult.user_notes || [];
+
+                // If API returned no user notes, try localStorage backup
+                if (userNotes.length === 0 && savedNotes) {
+                    try {
+                        userNotes = JSON.parse(savedNotes);
+                    } catch (e) {
+                        userNotes = [];
+                    }
+                }
+
+                setNotesData({ ...notesResult, user_notes: userNotes });
             } catch (err) {
                 // Fallback data
                 setResources({
@@ -45,6 +67,14 @@ const Resources = () => {
                     videos: [],
                     summary: 'No summary available.',
                 });
+
+                // Try to load notes from localStorage on error
+                const savedNotes = localStorage.getItem(`user_notes_topic_${topicId}`);
+                if (savedNotes) {
+                    try {
+                        setNotesData(prev => ({ ...prev, user_notes: JSON.parse(savedNotes) }));
+                    } catch (e) { }
+                }
             } finally {
                 setLoading(false);
             }
@@ -53,17 +83,40 @@ const Resources = () => {
         fetchData();
     }, [topicId, userLanguage]);
 
+    // Save notes to localStorage whenever they change
+    useEffect(() => {
+        if (notesData.user_notes && notesData.user_notes.length > 0) {
+            localStorage.setItem(`user_notes_topic_${topicId}`, JSON.stringify(notesData.user_notes));
+        }
+    }, [notesData.user_notes, topicId]);
+
     const handleAddNote = async () => {
         if (!newNote.trim()) return;
+
+        // Create a temporary note object for immediate UI update
+        const tempNote = {
+            id: Date.now(), // Temporary ID
+            content: newNote,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        };
+
+        // Immediately update UI and localStorage
+        const updatedNotes = [tempNote, ...notesData.user_notes];
+        setNotesData(prev => ({ ...prev, user_notes: updatedNotes }));
+        localStorage.setItem(`user_notes_topic_${topicId}`, JSON.stringify(updatedNotes));
+        setNewNote('');
+
         try {
-            const { data } = await notesAPI.create(parseInt(topicId), newNote);
+            // Try to save to backend
+            const { data } = await notesAPI.create(parseInt(topicId), tempNote.content);
+            // Update with real ID from server
             setNotesData(prev => ({
                 ...prev,
-                user_notes: [data, ...prev.user_notes]
+                user_notes: prev.user_notes.map(n => n.id === tempNote.id ? data : n)
             }));
-            setNewNote('');
         } catch (err) {
-            console.error('Failed to add note:', err);
+            console.error('Failed to save note to server, but saved locally:', err);
         }
     };
 
@@ -72,7 +125,7 @@ const Resources = () => {
             await notesAPI.update(noteId, editingContent);
             setNotesData(prev => ({
                 ...prev,
-                user_notes: prev.user_notes.map(n => 
+                user_notes: prev.user_notes.map(n =>
                     n.id === noteId ? { ...n, content: editingContent } : n
                 )
             }));
@@ -116,9 +169,9 @@ const Resources = () => {
                 animate={{ opacity: 1, y: 0 }}
                 style={{ marginBottom: '2rem' }}
             >
-                <Link to="/roadmap" style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
+                <Link to="/roadmap" style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
                     gap: '0.5rem',
                     color: 'var(--text-dim)',
                     marginBottom: '1rem',
@@ -132,9 +185,9 @@ const Resources = () => {
             </motion.header>
 
             {/* Tabs */}
-            <div style={{ 
-                display: 'flex', 
-                gap: '0.5rem', 
+            <div style={{
+                display: 'flex',
+                gap: '0.5rem',
                 marginBottom: '2rem',
                 borderBottom: '1px solid var(--border)',
                 paddingBottom: '1rem',
@@ -171,17 +224,18 @@ const Resources = () => {
                     animate={{ opacity: 1 }}
                 >
                     <div style={{ display: 'grid', gap: '1.5rem' }}>
-                        {resources?.videos?.map((video, i) => (
+                        {/* Show subtopics with their videos */}
+                        {subtopicsWithVideos.filter(st => st.video_url).map((subtopic, i) => (
                             <motion.div
-                                key={video.id}
+                                key={subtopic.id}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1 }}
                                 className="glass-card"
                             >
                                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                    <div style={{ 
-                                        width: '100%', 
+                                    <div style={{
+                                        width: '100%',
                                         maxWidth: '400px',
                                         aspectRatio: '16/9',
                                         borderRadius: '0.75rem',
@@ -189,22 +243,20 @@ const Resources = () => {
                                         background: '#000',
                                     }}>
                                         <iframe
-                                            src={video.url}
-                                            title={video.title}
+                                            src={subtopic.video_url.replace('watch?v=', 'embed/')}
+                                            title={subtopic.name}
                                             style={{ width: '100%', height: '100%', border: 'none' }}
                                             allowFullScreen
                                         />
                                     </div>
                                     <div style={{ flex: 1, minWidth: '200px' }}>
-                                        <h3 style={{ marginBottom: '0.5rem' }}>{video.title}</h3>
-                                        <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
-                                            Duration: {video.duration}
-                                        </p>
+                                        <h3 style={{ marginBottom: '0.5rem' }}>{subtopic.name}</h3>
+                                        <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>{subtopic.description}</p>
                                     </div>
                                 </div>
                             </motion.div>
                         ))}
-                        {(!resources?.videos || resources.videos.length === 0) && (
+                        {subtopicsWithVideos.length === 0 && (!resources?.videos || resources.videos.length === 0) && (
                             <div className="glass-card" style={{ textAlign: 'center', padding: '3rem' }}>
                                 <Play size={48} style={{ color: 'var(--text-dim)', marginBottom: '1rem' }} />
                                 <p style={{ color: 'var(--text-dim)' }}>No videos available yet</p>
@@ -226,9 +278,9 @@ const Resources = () => {
                             <BookOpen size={20} style={{ color: 'var(--primary)' }} />
                             <h3>Topic Summary</h3>
                         </div>
-                        <div style={{ 
-                            background: 'var(--surface-hover)', 
-                            padding: '1.5rem', 
+                        <div className="markdown-content" style={{
+                            background: 'var(--surface-hover)',
+                            padding: '1.5rem',
                             borderRadius: '0.75rem',
                             fontSize: '0.9rem',
                             lineHeight: 1.7,

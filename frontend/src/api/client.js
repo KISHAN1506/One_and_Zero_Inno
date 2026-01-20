@@ -41,7 +41,7 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
     login: (email, password) => api.post('/auth/login', { email, password }),
-    register: (name, email, password, language_preference = 'en') => 
+    register: (name, email, password, language_preference = 'en') =>
         api.post('/auth/register', { name, email, password, language_preference }),
     getProfile: () => api.get('/auth/profile'),
 };
@@ -65,6 +65,7 @@ export const assessmentAPI = {
     getTopicQuestions: (topicId) => api.get(`/assessment/topic/${topicId}`),
     skipQuestion: (questionId) => api.post('/assessment/skip-question', { question_id: questionId }),
     skipAll: (startFromBasics = true) => api.post('/assessment/skip-all', { start_from_basics: startFromBasics }),
+    getReassess: () => api.get('/assessment/reassess'),
 };
 
 // Roadmap API
@@ -83,6 +84,7 @@ export const subtopicsAPI = {
     getByTopic: (topicId) => api.get(`/subtopics/${topicId}`),
     toggleComplete: (subtopicId, completed) => api.post(`/subtopics/${subtopicId}/complete`, { completed }),
     getUserProgress: () => api.get('/subtopics/user/progress'),
+    completeAll: () => api.post('/subtopics/complete-all'),
 };
 
 // Notes API

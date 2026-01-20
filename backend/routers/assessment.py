@@ -185,6 +185,33 @@ async def get_topic_questions(topic_id: int):
                 "difficulty": q["difficulty"]
             } for q in questions
         ],
+        "total": len(questions)
+    }
+
+@router.get("/reassess")
+async def get_reassess_questions(db: Session = Depends(get_db)):
+    """Get a comprehensive reassessment quiz (one random question from each topic)"""
+    import random
+    
+    questions = []
+    topics = set(q["topic_id"] for q in SAMPLE_QUESTIONS)
+    
+    for topic_id in topics:
+        topic_questions = [q for q in SAMPLE_QUESTIONS if q["topic_id"] == topic_id]
+        if topic_questions:
+            questions.append(random.choice(topic_questions))
+            
+    return {
+        "questions": [
+            {
+                "id": q["id"], 
+                "topic_id": q["topic_id"], 
+                "topic": q["topic"], 
+                "text": q["text"], 
+                "options": q["options"], 
+                "difficulty": q["difficulty"]
+            } for q in questions
+        ],
         "total": len(questions),
-        "can_skip": True
+        "can_skip": False
     }

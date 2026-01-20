@@ -63,15 +63,15 @@ const Dashboard = () => {
                 });
 
                 const topicsData = await Promise.all(progressPromises);
-                
+
                 // Calculate overall progress
                 const totalCompleted = topicsData.reduce((sum, t) => sum + t.completed, 0);
                 const progress = TOTAL_SUBTOPICS > 0 ? Math.round((totalCompleted / TOTAL_SUBTOPICS) * 100) : 0;
-                
+
                 // Determine topic status based on completion and prerequisites
                 const topicsWithStatus = topicsData.map(topic => {
                     let status = 'locked';
-                    
+
                     if (topic.completed === topic.total && topic.total > 0) {
                         status = 'completed';
                     } else if (topic.completed > 0) {
@@ -88,7 +88,7 @@ const Dashboard = () => {
                             status = 'unlocked';
                         }
                     }
-                    
+
                     return { ...topic, status };
                 });
 
@@ -129,7 +129,7 @@ const Dashboard = () => {
     }
 
     // Find the current topic to continue (first in-progress or first unlocked)
-    const currentTopic = topicsProgress.find(t => t.status === 'in-progress') 
+    const currentTopic = topicsProgress.find(t => t.status === 'in-progress')
         || topicsProgress.find(t => t.status === 'unlocked');
 
     // Calculate knowledge gaps based on incomplete topics
@@ -216,8 +216,8 @@ const Dashboard = () => {
                             </Link>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {topicsProgress.slice(0, 4).map((topic, i) => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
+                            {topicsProgress.map((topic, i) => (
                                 <TopicRow key={topic.id} topic={topic} index={i} />
                             ))}
                         </div>
@@ -295,7 +295,7 @@ const Dashboard = () => {
                                     AI RECOMMENDATION
                                 </p>
                                 <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                                    {currentTopic 
+                                    {currentTopic
                                         ? `Continue with "${currentTopic.name}" to maintain your progress.`
                                         : 'Great job! Keep up the learning momentum!'
                                     }
@@ -316,7 +316,7 @@ const Dashboard = () => {
                             <TrendingUp size={24} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
                             <h3 style={{ marginBottom: '0.5rem' }}>Continue Learning</h3>
                             <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                                {currentTopic.completed > 0 
+                                {currentTopic.completed > 0
                                     ? `Pick up where you left off with ${currentTopic.name}`
                                     : `Start learning ${currentTopic.name}`
                                 }

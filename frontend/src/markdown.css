@@ -7,7 +7,8 @@
   margin-bottom: 0;
 }
 
-.markdown-content ul, .markdown-content ol {
+.markdown-content ul,
+.markdown-content ol {
   margin-bottom: 0.75rem;
   padding-left: 1.25rem;
 }
@@ -16,9 +17,9 @@
   margin-bottom: 0.25rem;
 }
 
-.markdown-content h1, 
-.markdown-content h2, 
-.markdown-content h3, 
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
 .markdown-content h4 {
   font-size: 1.1em;
   font-weight: 700;
@@ -38,20 +39,58 @@
   color: inherit;
 }
 
+/* Inline code (not in pre block) */
 .markdown-content code {
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.2em 0.4em;
+  background: rgba(139, 92, 246, 0.15);
+  padding: 0.15em 0.4em;
   border-radius: 4px;
   font-family: 'Fira Code', monospace;
-  font-size: 0.9em;
+  font-size: 0.875em;
+  color: inherit;
+}
+
+/* Code blocks - clean look without line highlights */
+.markdown-content pre {
+  background: #1e1e2e;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+/* Reset ALL elements inside pre to have no background */
+.markdown-content pre * {
+  background: transparent !important;
 }
 
 .markdown-content pre code {
-  background: transparent;
+  background: transparent !important;
   padding: 0;
+  color: #c5c8c6;
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 
-/* User message specific overrides if needed */
+/* User message overrides */
 .msg-user .markdown-content code {
   background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* Light mode styles */
+[data-theme="light"] .markdown-content code {
+  background: rgba(139, 92, 246, 0.1);
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .markdown-content pre {
+  background: #282c34;
+}
+
+[data-theme="light"] .markdown-content pre code {
+  color: #abb2bf;
 }

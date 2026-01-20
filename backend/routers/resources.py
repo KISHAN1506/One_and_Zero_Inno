@@ -85,25 +85,47 @@ SAMPLE_RESOURCES = {
     },
 }
 
+from routers.subtopics import DEFAULT_SUBTOPICS
+
 @router.get("/topic/{topic_id}")
 async def get_resources_by_topic(topic_id: int, language: str = "en", db: Session = Depends(get_db)):
     if topic_id in SAMPLE_RESOURCES:
         resource = SAMPLE_RESOURCES[topic_id].copy()
         
-        # Adjust videos based on language preference
+        # Get videos from subtopics
+        subtopics = DEFAULT_SUBTOPICS.get(topic_id, [])
         videos = []
-        for v in resource.get("videos", []):
-            video = v.copy()
-            if language == "hi":
-                video["title"] = v.get("title_hi", v["title"])
-                video["url"] = v.get("url_hi", v["url"])
-            videos.append({
-                "id": video["id"],
-                "title": video["title"],
-                "url": video["url"],
-                "duration": video.get("duration", ""),
-                "completed": False
-            })
+        
+        # Add videos from subtopics
+        for st in subtopics:
+            if "video_url" in st:
+                # Convert regular YouTube watch URLs to embed URLs if needed
+                url = st["video_url"]
+                if "watch?v=" in url:
+                    url = url.replace("watch?v=", "embed/")
+                
+                videos.append({
+                    "id": st["id"],
+                    "title": st["name"],
+                    "url": url,
+                    "duration": "15:00", # Placeholder duration
+                    "completed": False
+                })
+        
+        # If no subtopic videos, fall back to sample videos (compatibility)
+        if not videos:
+            for v in resource.get("videos", []):
+                video = v.copy()
+                if language == "hi":
+                    video["title"] = v.get("title_hi", v["title"])
+                    video["url"] = v.get("url_hi", v["url"])
+                videos.append({
+                    "id": video["id"],
+                    "title": video["title"],
+                    "url": video["url"],
+                    "duration": video.get("duration", ""),
+                    "completed": False
+                })
         
         resource["videos"] = videos
         return resource
