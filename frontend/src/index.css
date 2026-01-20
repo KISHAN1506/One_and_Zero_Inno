@@ -1,42 +1,43 @@
 :root {
-  /* Primary Colors */
-  --primary: #8b5cf6;
-  --primary-glow: rgba(139, 92, 246, 0.4);
-  --secondary: #06b6d4;
-  --secondary-glow: rgba(6, 182, 212, 0.4);
-  --accent: #ec4899;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  /* Premium SaaS Palette (Linear/Vercel inspired) */
+  --primary: #7c3aed; /* Electric Violet */
+  --primary-glow: rgba(124, 58, 237, 0.25);
+  --secondary: #06b6d4; /* Cyan */
+  --secondary-glow: rgba(6, 182, 212, 0.25);
+  --accent: #f43f5e; /* Rose */
+  --success: #10b981; /* Emerald */
+  --warning: #f59e0b; /* Amber */
+  --error: #ef4444; /* Red */
 
-  /* Dark Mode (Default) */
-  --background: #020617;
-
+  /* Dark Mode (Zinc-based Premium Dark) */
+  --background: #09090b; /* Zinc 950 - Richer than pure black */
+  
   @import './markdown.css';
 
-  --surface: rgba(15, 23, 42, 0.6);
-  --surface-hover: rgba(30, 41, 59, 0.8);
-  --surface-solid: #0f172a;
-  --text: #f8fafc;
-  --text-dim: #94a3b8;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(139, 92, 246, 0.3);
-  --glass-blur: blur(20px);
-  --bg-orb-opacity: 0.15;
-  --card-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --surface: rgba(24, 24, 27, 0.6); /* Zinc 900 */
+  --surface-hover: rgba(39, 39, 42, 0.8); /* Zinc 800 */
+  --surface-solid: #18181b;
+  --text: #fafafa; /* Zinc 50 */
+  --text-dim: #a1a1aa; /* Zinc 400 */
+  --border: rgba(255, 255, 255, 0.08); /* Subtle white border */
+  --border-glow: rgba(124, 58, 237, 0.15);
+  --glass-blur: blur(16px);
+  --bg-orb-opacity: 0.08; /* Very subtle ambient light */
+  --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 4px 6px -1px rgba(0, 0, 0, 0.3); /* Crisp 1px border shadow */
 }
 
 [data-theme='light'] {
-  --background: #f8fafc;
-  --surface: rgba(255, 255, 255, 0.7);
-  --surface-hover: rgba(255, 255, 255, 0.9);
-  --surface-solid: #ffffff;
-  --text: #0f172a;
-  --text-dim: #475569;
-  --border: rgba(0, 0, 0, 0.05);
-  --border-glow: rgba(139, 92, 246, 0.2);
-  --bg-orb-opacity: 0.4;
-  --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  /* Light Mode (Crisp & Professional) */
+  --background: #ffffff;
+  --surface: rgba(244, 244, 245, 0.8); /* Zinc 100 */
+  --surface-hover: rgba(228, 228, 231, 0.9); /* Zinc 200 */
+  --surface-solid: #f4f4f5;
+  --text: #09090b; /* Zinc 950 */
+  --text-dim: #52525b; /* Zinc 600 */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-glow: rgba(124, 58, 237, 0.08);
+  --bg-orb-opacity: 0.15;
+  --card-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 * {
@@ -602,4 +603,82 @@ blockquote {
   margin: 1rem 0;
   font-style: italic;
   color: var(--text-dim);
+}
+
+/* Action Cards (Dashboard) - Button-like appearance */
+.action-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
+}
+
+.action-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary);
+  box-shadow: 0 12px 24px -10px var(--primary-glow);
+  background: var(--surface-hover);
+  cursor: pointer;
+}
+
+.action-card h3 {
+  color: var(--text); /* Ensure high contrast */
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.action-card p {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.action-btn-indicator {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--primary);
+  opacity: 0.9;
+  transition: all 0.2s ease;
+  padding: 0.5rem 0;
+}
+
+.action-card:hover .action-btn-indicator {
+  opacity: 1;
+  transform: translateX(4px);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Continue Learning Card - Theme Aware Gradient */
+.continue-learning-card {
+  background: linear-gradient(135deg, var(--surface-hover), var(--surface));
+  border: 1px solid var(--primary-glow);
+  position: relative;
+  overflow: hidden;
+}
+
+.continue-learning-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, var(--primary-glow) 0%, transparent 100%);
+  opacity: 0.1;
+  pointer-events: none;
 }

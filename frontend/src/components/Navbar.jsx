@@ -56,7 +56,7 @@ const Navbar = () => {
                         fontWeight: 800,
                         color: 'var(--text)',
                     }}>
-                        Learn<span className="grad-text">Path</span>
+                        Zero<span className="grad-text">ToOne</span>
                     </span>
                 </Link>
 

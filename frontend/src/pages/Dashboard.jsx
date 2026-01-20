@@ -240,49 +240,46 @@ const Dashboard = () => {
                         <Link to="/assessment" style={{ textDecoration: 'none' }}>
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
-                                className="glass-card"
-                                style={{
-                                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(6, 182, 212, 0.1))',
-                                    cursor: 'pointer',
-                                }}
+                                className="action-card"
                             >
-                                <Target size={32} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
-                                <h3 style={{ marginBottom: '0.5rem' }}>Take Assessment</h3>
-                                <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
-                                    Test your knowledge and update your roadmap
-                                </p>
+                                <div>
+                                    <Target size={32} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
+                                    <h3>Take Assessment</h3>
+                                    <p>Test your knowledge and update your roadmap</p>
+                                </div>
+                                <div className="action-btn-indicator">
+                                    Start Now <ArrowRight size={16} />
+                                </div>
                             </motion.div>
                         </Link>
                         <Link to="/chat" style={{ textDecoration: 'none' }}>
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
-                                className="glass-card"
-                                style={{
-                                    background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.1))',
-                                    cursor: 'pointer',
-                                }}
+                                className="action-card"
                             >
-                                <MessageCircle size={32} style={{ color: 'var(--secondary)', marginBottom: '1rem' }} />
-                                <h3 style={{ marginBottom: '0.5rem' }}>Ask a Doubt</h3>
-                                <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
-                                    Get instant answers from our AI assistant
-                                </p>
+                                <div>
+                                    <MessageCircle size={32} style={{ color: 'var(--secondary)', marginBottom: '1rem' }} />
+                                    <h3>Ask a Doubt</h3>
+                                    <p>Get instant answers from our AI assistant</p>
+                                </div>
+                                <div className="action-btn-indicator" style={{ color: 'var(--secondary)' }}>
+                                    Chat Now <ArrowRight size={16} />
+                                </div>
                             </motion.div>
                         </Link>
                         <Link to="/quiz-history" style={{ textDecoration: 'none' }}>
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
-                                className="glass-card"
-                                style={{
-                                    background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(139, 92, 246, 0.1))',
-                                    cursor: 'pointer',
-                                }}
+                                className="action-card"
                             >
-                                <BarChart3 size={32} style={{ color: 'var(--warning)', marginBottom: '1rem' }} />
-                                <h3 style={{ marginBottom: '0.5rem' }}>Quiz History</h3>
-                                <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
-                                    Review your past quiz attempts and reports
-                                </p>
+                                <div>
+                                    <BarChart3 size={32} style={{ color: 'var(--warning)', marginBottom: '1rem' }} />
+                                    <h3>Quiz History</h3>
+                                    <p>Review your past quiz attempts and reports</p>
+                                </div>
+                                <div className="action-btn-indicator" style={{ color: 'var(--warning)' }}>
+                                    View History <ArrowRight size={16} />
+                                </div>
                             </motion.div>
                         </Link>
                     </div>
@@ -362,8 +359,7 @@ const Dashboard = () => {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.4 }}
-                            className="glass-card"
-                            style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(0, 0, 0, 0.5))' }}
+                            className="glass-card continue-learning-card"
                         >
                             <TrendingUp size={24} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
                             <h3 style={{ marginBottom: '0.5rem' }}>Continue Learning</h3>

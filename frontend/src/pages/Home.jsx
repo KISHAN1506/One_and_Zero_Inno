@@ -79,7 +79,7 @@ const Home = () => {
                 style={{ marginBottom: '6rem' }}
             >
                 <h2 style={{ textAlign: 'center', fontSize: '2rem', marginBottom: '3rem' }}>
-                    Why <span className="grad-text">LearnPath</span>?
+                    Why <span className="grad-text">ZeroToOne</span>?
                 </h2>
                 <div className="grid-4">
                     {features.map((feature, i) => (
