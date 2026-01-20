@@ -166,8 +166,8 @@ class RecommendationService:
             rec = models.Recommendation(
                 user_id=self.user_id,
                 type="topic_focus",
-                title="Great Job! Keep Going!",
-                description="You performed well on the assessment. Continue to the next topic in your roadmap!",
+                title="Continue Learning",
+                description="Continue to the next topic in your roadmap.",
                 action_url="/roadmap",
                 source="rule_based",
                 priority=2,
@@ -273,47 +273,41 @@ class RecommendationService:
         uncompleted_subtopics = [st for st in subtopics_list if st["id"] not in completed_subtopic_ids]
         
         if completed:
-            # User just completed a subtopic - encourage them!
+            # User just completed a subtopic
             if progress_pct >= 1.0:
-                # Topic fully complete - recommend next topic
+                # Topic fully complete - recommend next topic and quiz
                 self._recommend_next_topic(topic_id)
                 self._recommend_topic_quiz(topic_id, topic_name)
-            elif progress_pct >= 0.7:
-                # Almost done - push to finish
-                if uncompleted_subtopics:
-                    self._recommend_next_subtopic(uncompleted_subtopics[0], topic_name, "You're almost done!")
-                self._add_motivation_tip(f"Great progress on {topic_name}! Just {total_count - completed_count} more subtopics to go!")
             else:
-                # Still in progress - recommend next subtopic
+                # Still in progress - recommend next subtopic and its video
                 if uncompleted_subtopics:
-                    self._recommend_next_subtopic(uncompleted_subtopics[0], topic_name, "Keep the momentum going!")
+                    self._recommend_next_subtopic(uncompleted_subtopics[0], topic_name)
                 
                 # If weak in quiz, add practice questions
                 self._check_and_add_quiz_practice(topic_id, topic_name)
         else:
-            # User marked something as incomplete - they might need help
-            # Recommend the subtopic they just unmarked
+            # User marked something as incomplete - recommend that subtopic's video
             current_subtopic = next((st for st in subtopics_list if st["id"] == subtopic_id), None)
             if current_subtopic:
-                self._recommend_next_subtopic(current_subtopic, topic_name, "Take your time to master this concept!")
+                self._recommend_next_subtopic(current_subtopic, topic_name)
                 
                 # Add a video recommendation for this subtopic
                 if current_subtopic.get("video_url"):
                     self._add_video_recommendation(
                         current_subtopic["name"],
                         current_subtopic["video_url"],
-                        f"Review this video to strengthen your understanding of {current_subtopic['name']}."
+                        current_subtopic.get("description", f"Learn {current_subtopic['name']}")
                     )
         
         self.db.commit()
 
-    def _recommend_next_subtopic(self, subtopic: dict, topic_name: str, motivation: str):
+    def _recommend_next_subtopic(self, subtopic: dict, topic_name: str):
         """Recommend the next subtopic to complete"""
         rec = models.Recommendation(
             user_id=self.user_id,
             type="topic_focus",
             title=f"Next: {subtopic['name']}",
-            description=f"{motivation} Continue with '{subtopic['name']}' in {topic_name}.",
+            description=subtopic.get("description", f"Learn {subtopic['name']} in {topic_name}"),
             action_url=f"/roadmap",
             source="rule_based",
             priority=5
@@ -323,9 +317,9 @@ class RecommendationService:
         # Also recommend the video for this subtopic if available
         if subtopic.get("video_url"):
             self._add_video_recommendation(
-                f"Learn: {subtopic['name']}",
+                subtopic['name'],
                 subtopic["video_url"],
-                subtopic.get("description", f"Master {subtopic['name']} concept.")
+                subtopic.get("description", f"Learn {subtopic['name']}")
             )
 
     def _recommend_next_topic(self, current_topic_id: int):
@@ -338,20 +332,20 @@ class RecommendationService:
             rec = models.Recommendation(
                 user_id=self.user_id,
                 type="topic_focus",
-                title=f"🎉 Topic Complete! Start: {next_topic.name}",
-                description=f"Excellent work! You've mastered the previous topic. Now move on to {next_topic.name} to continue your DSA journey.",
+                title=f"Next Topic: {next_topic.name}",
+                description=next_topic.description if next_topic.description else f"Start learning {next_topic.name}",
                 action_url="/roadmap",
                 source="rule_based",
                 priority=5
             )
             self.db.add(rec)
         else:
-            # User completed all topics!
+            # User completed all topics - suggest reassessment
             rec = models.Recommendation(
                 user_id=self.user_id,
-                type="topic_focus",
-                title="🏆 All Topics Complete!",
-                description="Amazing achievement! You've completed all DSA topics. Consider taking a full reassessment to measure your overall mastery.",
+                type="question",
+                title="Take Full Reassessment",
+                description="Test your overall DSA knowledge with a complete assessment",
                 action_url="/assessment?mode=reassess",
                 source="rule_based",
                 priority=5
@@ -363,26 +357,15 @@ class RecommendationService:
         rec = models.Recommendation(
             user_id=self.user_id,
             type="question",
-            title=f"📝 Test Your {topic_name} Skills",
-            description=f"You've completed all subtopics in {topic_name}. Take a quiz to solidify your understanding!",
+            title=f"Quiz: {topic_name}",
+            description=f"Test your {topic_name} knowledge",
             action_url=f"/assessment?topic={topic_id}",
             source="rule_based",
             priority=4
         )
         self.db.add(rec)
 
-    def _add_motivation_tip(self, message: str):
-        """Add a motivational tip"""
-        rec = models.Recommendation(
-            user_id=self.user_id,
-            type="tip",
-            title="💪 Keep Going!",
-            description=message,
-            action_url="/roadmap",
-            source="rule_based",
-            priority=3
-        )
-        self.db.add(rec)
+    # Removed _add_motivation_tip - no more motivational messages
 
     def _add_video_recommendation(self, title: str, url: str, description: str):
         """Add a video recommendation"""
@@ -397,7 +380,7 @@ class RecommendationService:
             rec = models.Recommendation(
                 user_id=self.user_id,
                 type="video",
-                title=f"🎬 {title}",
+                title=f"Video: {title}",
                 description=description,
                 action_url=url,
                 source="rule_based",
