@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, topics, assessment, roadmap, resources, chat
+from routers import auth, topics, assessment, roadmap, resources, chat, notes, subtopics
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -27,7 +27,8 @@ app.include_router(assessment.router)
 app.include_router(roadmap.router)
 app.include_router(resources.router)
 app.include_router(chat.router)
-# TODO: Fix notes and subtopics routers - they have Pydantic validation issues
+app.include_router(notes.router)
+app.include_router(subtopics.router)
 
 @app.get("/")
 async def root():

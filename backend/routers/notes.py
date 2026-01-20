@@ -149,27 +149,14 @@ def backtrack(choices):
 @router.get("/topic/{topic_id}")
 async def get_notes_for_topic(
     topic_id: int, 
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = None
+    db: Session = Depends(get_db)
 ):
     """Get topic summary and user's custom notes"""
     summary = TOPIC_SUMMARIES.get(topic_id, "No summary available for this topic.")
     
+    # User notes require authentication - returning empty for now
+    # Frontend should use authenticated endpoints for user-specific notes
     user_notes = []
-    if current_user:
-        notes = db.query(UserNote).filter(
-            UserNote.user_id == current_user.id,
-            UserNote.topic_id == topic_id
-        ).order_by(UserNote.updated_at.desc()).all()
-        
-        user_notes = [
-            {
-                "id": note.id,
-                "content": note.content,
-                "created_at": note.created_at.isoformat(),
-                "updated_at": note.updated_at.isoformat()
-            } for note in notes
-        ]
     
     return {
         "topic_id": topic_id,

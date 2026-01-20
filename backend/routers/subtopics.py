@@ -86,19 +86,14 @@ DEFAULT_SUBTOPICS = {
 @router.get("/{topic_id}")
 async def get_subtopics(
     topic_id: int,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = None
+    db: Session = Depends(get_db)
 ):
     """Get subtopics for a topic with completion status"""
     subtopics = DEFAULT_SUBTOPICS.get(topic_id, [])
     
-    # Get user's completion status
+    # Completion status requires authentication - returning all as incomplete for public view
+    # Frontend should use authenticated endpoints for user-specific progress
     completed_ids = set()
-    if current_user:
-        progress = db.query(SubtopicProgress).filter(
-            SubtopicProgress.user_id == current_user.id
-        ).all()
-        completed_ids = {p.subtopic_id for p in progress if p.completed}
     
     result = []
     for st in subtopics:
