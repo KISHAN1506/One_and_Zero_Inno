@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Editor
+.DS_Store
+*.swp
+
+# Env
+.env.local

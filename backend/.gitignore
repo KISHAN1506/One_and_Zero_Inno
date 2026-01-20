@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.DS_Store
+*.swp
