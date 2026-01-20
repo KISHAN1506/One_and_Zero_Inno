@@ -230,3 +230,194 @@ class RecommendationService:
         ]
         
         await self.generate_recommendations_from_assessment(topic_mastery)
+
+    def generate_recommendations_from_progress(self, topic_id: int, subtopic_id: int, completed: bool, topic_progress: dict):
+        """
+        Called on EVERY subtopic completion status change.
+        Generates contextual recommendations based on:
+        1. Current topic progress
+        2. Completed subtopics
+        3. Next logical steps in the learning path
+        
+        Args:
+            topic_id: The topic the subtopic belongs to
+            subtopic_id: The subtopic that was just toggled
+            completed: Whether it was marked complete (True) or incomplete (False)
+            topic_progress: Dict with 'completed' and 'total' counts for the topic
+        """
+        # Clean up old recommendations first
+        self._cleanup_recommendations()
+        
+        # Get topic info
+        topic = self.db.query(models.Topic).filter(models.Topic.id == topic_id).first()
+        topic_name = topic.name if topic else f"Topic {topic_id}"
+        
+        completed_count = topic_progress.get('completed', 0)
+        total_count = topic_progress.get('total', 0)
+        progress_pct = completed_count / total_count if total_count > 0 else 0
+        
+        # Import DEFAULT_SUBTOPICS to get subtopic details
+        from routers.subtopics import DEFAULT_SUBTOPICS
+        subtopics_list = DEFAULT_SUBTOPICS.get(topic_id, [])
+        
+        # Get user's completed subtopic IDs for this topic
+        subtopic_ids = [st["id"] for st in subtopics_list]
+        completed_records = self.db.query(models.SubtopicProgress).filter(
+            models.SubtopicProgress.user_id == self.user_id,
+            models.SubtopicProgress.subtopic_id.in_(subtopic_ids),
+            models.SubtopicProgress.completed == True
+        ).all()
+        completed_subtopic_ids = {r.subtopic_id for r in completed_records}
+        
+        # Find uncompleted subtopics in order
+        uncompleted_subtopics = [st for st in subtopics_list if st["id"] not in completed_subtopic_ids]
+        
+        if completed:
+            # User just completed a subtopic - encourage them!
+            if progress_pct >= 1.0:
+                # Topic fully complete - recommend next topic
+                self._recommend_next_topic(topic_id)
+                self._recommend_topic_quiz(topic_id, topic_name)
+            elif progress_pct >= 0.7:
+                # Almost done - push to finish
+                if uncompleted_subtopics:
+                    self._recommend_next_subtopic(uncompleted_subtopics[0], topic_name, "You're almost done!")
+                self._add_motivation_tip(f"Great progress on {topic_name}! Just {total_count - completed_count} more subtopics to go!")
+            else:
+                # Still in progress - recommend next subtopic
+                if uncompleted_subtopics:
+                    self._recommend_next_subtopic(uncompleted_subtopics[0], topic_name, "Keep the momentum going!")
+                
+                # If weak in quiz, add practice questions
+                self._check_and_add_quiz_practice(topic_id, topic_name)
+        else:
+            # User marked something as incomplete - they might need help
+            # Recommend the subtopic they just unmarked
+            current_subtopic = next((st for st in subtopics_list if st["id"] == subtopic_id), None)
+            if current_subtopic:
+                self._recommend_next_subtopic(current_subtopic, topic_name, "Take your time to master this concept!")
+                
+                # Add a video recommendation for this subtopic
+                if current_subtopic.get("video_url"):
+                    self._add_video_recommendation(
+                        current_subtopic["name"],
+                        current_subtopic["video_url"],
+                        f"Review this video to strengthen your understanding of {current_subtopic['name']}."
+                    )
+        
+        self.db.commit()
+
+    def _recommend_next_subtopic(self, subtopic: dict, topic_name: str, motivation: str):
+        """Recommend the next subtopic to complete"""
+        rec = models.Recommendation(
+            user_id=self.user_id,
+            type="topic_focus",
+            title=f"Next: {subtopic['name']}",
+            description=f"{motivation} Continue with '{subtopic['name']}' in {topic_name}.",
+            action_url=f"/roadmap",
+            source="rule_based",
+            priority=5
+        )
+        self.db.add(rec)
+        
+        # Also recommend the video for this subtopic if available
+        if subtopic.get("video_url"):
+            self._add_video_recommendation(
+                f"Learn: {subtopic['name']}",
+                subtopic["video_url"],
+                subtopic.get("description", f"Master {subtopic['name']} concept.")
+            )
+
+    def _recommend_next_topic(self, current_topic_id: int):
+        """Recommend starting the next topic"""
+        next_topic = self.db.query(models.Topic).filter(
+            models.Topic.id == current_topic_id + 1
+        ).first()
+        
+        if next_topic:
+            rec = models.Recommendation(
+                user_id=self.user_id,
+                type="topic_focus",
+                title=f"🎉 Topic Complete! Start: {next_topic.name}",
+                description=f"Excellent work! You've mastered the previous topic. Now move on to {next_topic.name} to continue your DSA journey.",
+                action_url="/roadmap",
+                source="rule_based",
+                priority=5
+            )
+            self.db.add(rec)
+        else:
+            # User completed all topics!
+            rec = models.Recommendation(
+                user_id=self.user_id,
+                type="topic_focus",
+                title="🏆 All Topics Complete!",
+                description="Amazing achievement! You've completed all DSA topics. Consider taking a full reassessment to measure your overall mastery.",
+                action_url="/assessment?mode=reassess",
+                source="rule_based",
+                priority=5
+            )
+            self.db.add(rec)
+
+    def _recommend_topic_quiz(self, topic_id: int, topic_name: str):
+        """Recommend taking a quiz for the completed topic"""
+        rec = models.Recommendation(
+            user_id=self.user_id,
+            type="question",
+            title=f"📝 Test Your {topic_name} Skills",
+            description=f"You've completed all subtopics in {topic_name}. Take a quiz to solidify your understanding!",
+            action_url=f"/assessment?topic={topic_id}",
+            source="rule_based",
+            priority=4
+        )
+        self.db.add(rec)
+
+    def _add_motivation_tip(self, message: str):
+        """Add a motivational tip"""
+        rec = models.Recommendation(
+            user_id=self.user_id,
+            type="tip",
+            title="💪 Keep Going!",
+            description=message,
+            action_url="/roadmap",
+            source="rule_based",
+            priority=3
+        )
+        self.db.add(rec)
+
+    def _add_video_recommendation(self, title: str, url: str, description: str):
+        """Add a video recommendation"""
+        # Check if already exists
+        exists = self.db.query(models.Recommendation).filter_by(
+            user_id=self.user_id,
+            action_url=url,
+            is_completed=False
+        ).first()
+        
+        if not exists:
+            rec = models.Recommendation(
+                user_id=self.user_id,
+                type="video",
+                title=f"🎬 {title}",
+                description=description,
+                action_url=url,
+                source="rule_based",
+                priority=3
+            )
+            self.db.add(rec)
+
+    def _check_and_add_quiz_practice(self, topic_id: int, topic_name: str):
+        """Check if user has quiz history and add practice if needed"""
+        # Check if user has taken quizzes and done poorly on this topic
+        from models import QuizAttempt
+        recent_attempts = self.db.query(QuizAttempt).filter(
+            QuizAttempt.user_id == self.user_id
+        ).order_by(QuizAttempt.created_at.desc()).limit(3).all()
+        
+        for attempt in recent_attempts:
+            if attempt.topic_mastery:
+                for tm in attempt.topic_mastery:
+                    if topic_name in tm.get("topic", "") and tm.get("mastery", 1) < 0.6:
+                        # User struggled with this topic in quiz - add practice
+                        self._recommend_practice_questions(topic_name, count=2)
+                        return
+

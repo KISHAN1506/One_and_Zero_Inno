@@ -198,27 +198,36 @@ async def toggle_subtopic_completion(
         completed_count = len(completed_records)
         topic_completed = completed_count == total_count and total_count > 0
     
-    # If topic is fully completed, generate recommendations for next topic
-    if topic_completed and request.completed:
-        try:
-            # Get current topic name for messaging
-            topic = db.query(Topic).filter(Topic.id == topic_id).first()
-            topic_name = topic.name if topic else f"Topic {topic_id}"
-            
-            # Find next topic (topic_id + 1)
-            next_topic = db.query(Topic).filter(Topic.id == topic_id + 1).first()
-            
-            rec_service = RecommendationService(db, current_user.id)
-            
-            if next_topic:
-                # Recommend practice questions for the NEXT topic
-                rec_service._recommend_practice_questions(next_topic.name, count=3)
-            
-            # Also check if user had any weak areas in this topic from assessments
-            # and recommend reinforcement questions
-            rec_service._recommend_progression()  # Add a "Keep going" message
-        except Exception as e:
-            print(f"Recommendation on topic complete failed: {e}")  # Non-blocking
+    # Generate fresh recommendations based on current progress
+    # This runs on EVERY completion status change
+    recommendations = []
+    try:
+        topic_progress = {
+            "completed": completed_count,
+            "total": total_count
+        }
+        rec_service = RecommendationService(db, current_user.id)
+        rec_service.generate_recommendations_from_progress(
+            topic_id=topic_id,
+            subtopic_id=subtopic_id,
+            completed=request.completed,
+            topic_progress=topic_progress
+        )
+        
+        # Fetch the updated recommendations to return
+        recs = rec_service.get_user_recommendations()
+        recommendations = [
+            {
+                "id": r.id,
+                "type": r.type,
+                "title": r.title,
+                "description": r.description,
+                "action_url": r.action_url,
+                "priority": r.priority
+            } for r in recs
+        ]
+    except Exception as e:
+        print(f"Recommendation generation on subtopic change failed: {e}")  # Non-blocking
     
     return {
         "subtopic_id": subtopic_id,
@@ -229,7 +238,8 @@ async def toggle_subtopic_completion(
         "topic_progress": {
             "completed": completed_count,
             "total": total_count
-        }
+        },
+        "recommendations": recommendations
     }
 
 @router.get("/user/progress")
