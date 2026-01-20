@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, SkipForward, AlertCircle, Brain, Target, BookOpen } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { assessmentAPI } from '../api/client';
+import { assessmentAPI, topicsAPI } from '../api/client';
 
 const Assessment = () => {
     const { user } = useUser();
     const navigate = useNavigate();
+
+    // Quiz State
     const [questions, setQuestions] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState({});
@@ -18,7 +20,7 @@ const Assessment = () => {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        const fetchQuestions = async () => {
+        const fetchTopics = async () => {
             try {
                 // Check if specific topics were selected
                 const selectedTopics = localStorage.getItem('selectedTopics');
@@ -40,8 +42,7 @@ const Assessment = () => {
                 setLoading(false);
             }
         };
-
-        fetchQuestions();
+        fetchTopics();
     }, []);
 
     const handleAnswer = (optionIndex) => {
@@ -71,10 +72,10 @@ const Assessment = () => {
 
     const handleSubmit = async () => {
         setSubmitting(true);
-
         try {
             const { data } = await assessmentAPI.submit({ answers, skipped: skippedQuestions });
             setResults(data);
+            setShowResult(true);
         } catch (err) {
             // Calculate results locally if API fails
             const topicScores = {};
@@ -109,24 +110,23 @@ const Assessment = () => {
                 answered,
                 skipped: skippedQuestions.length,
             });
+            setShowResult(true);
         } finally {
             setSubmitting(false);
-            setShowResult(true);
             localStorage.removeItem('selectedTopics');
         }
     };
 
+    // Loading state
     if (loading) {
         return (
             <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
-                <div style={{ textAlign: 'center' }}>
-                    <div className="spinner" style={{ margin: '0 auto 1rem' }} />
-                    <p style={{ color: 'var(--text-dim)' }}>Loading assessment...</p>
-                </div>
+                <div className="spinner" />
             </div>
         );
     }
 
+    // Results screen
     if (showResult && results) {
         return (
             <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
