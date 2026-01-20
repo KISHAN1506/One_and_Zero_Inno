@@ -6,13 +6,16 @@ import { useUser } from '../context/UserContext';
 import { topicsAPI } from '../api/client';
 
 const TopicSelection = () => {
-    const { user } = useUser();
+    const { user, loading: userLoading } = useUser();
     const navigate = useNavigate();
     const [topics, setTopics] = useState([]);
     const [selectedTopics, setSelectedTopics] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Wait for UserContext to finish loading before checking auth
+        if (userLoading) return;
+        
         if (!user) {
             navigate('/login');
             return;
@@ -40,7 +43,7 @@ const TopicSelection = () => {
         };
 
         fetchTopics();
-    }, [user, navigate]);
+    }, [user, userLoading, navigate]);
 
     const toggleTopic = (topicId) => {
         setSelectedTopics(prev => 
@@ -63,7 +66,7 @@ const TopicSelection = () => {
         navigate('/roadmap');
     };
 
-    if (loading) {
+    if (loading || userLoading) {
         return (
             <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
                 <div style={{ textAlign: 'center' }}>

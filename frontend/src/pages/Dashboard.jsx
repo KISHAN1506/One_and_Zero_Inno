@@ -6,13 +6,29 @@ import {
     CheckCircle2, Circle, Lock, TrendingUp, AlertTriangle
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { roadmapAPI } from '../api/client';
+import { subtopicsAPI } from '../api/client';
+
+// Default topics structure
+const DEFAULT_TOPICS = [
+    { id: 1, name: 'Arrays & Strings', subtopicCount: 7, prerequisites: [] },
+    { id: 2, name: 'Linked Lists', subtopicCount: 6, prerequisites: [1] },
+    { id: 3, name: 'Stacks & Queues', subtopicCount: 6, prerequisites: [1, 2] },
+    { id: 4, name: 'Recursion & Backtracking', subtopicCount: 6, prerequisites: [3] },
+    { id: 5, name: 'Trees & BST', subtopicCount: 6, prerequisites: [4] },
+    { id: 6, name: 'Graphs', subtopicCount: 7, prerequisites: [5] },
+    { id: 7, name: 'Sorting Algorithms', subtopicCount: 6, prerequisites: [4] },
+    { id: 8, name: 'Dynamic Programming', subtopicCount: 7, prerequisites: [4, 7] },
+];
+
+const TOTAL_SUBTOPICS = DEFAULT_TOPICS.reduce((sum, t) => sum + t.subtopicCount, 0);
 
 const Dashboard = () => {
     const { user, loading: authLoading } = useUser();
     const navigate = useNavigate();
-    const [roadmap, setRoadmap] = useState(null);
+    const [topicsProgress, setTopicsProgress] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [overallProgress, setOverallProgress] = useState(0);
+    const [completedSubtopics, setCompletedSubtopics] = useState(0);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -22,26 +38,77 @@ const Dashboard = () => {
 
         const fetchData = async () => {
             try {
-                const { data } = await roadmapAPI.get();
-                setRoadmap(data);
-            } catch (err) {
-                // Use default data if API fails
-                setRoadmap({
-                    topics: [
-                        { id: 1, name: 'Arrays & Strings', mastery: 0.75, status: 'completed' },
-                        { id: 2, name: 'Linked Lists', mastery: 0.45, status: 'in-progress' },
-                        { id: 3, name: 'Stacks & Queues', mastery: 0, status: 'locked' },
-                        { id: 4, name: 'Recursion', mastery: 0, status: 'locked' },
-                    ],
-                    gaps: [
-                        { topic: 'Two Pointers', deficiency: 65 },
-                        { topic: 'Sliding Window', deficiency: 45 },
-                        { topic: 'Hash Maps', deficiency: 30 },
-                    ],
-                    overallProgress: 35,
-                    xp: 1250,
-                    streak: 5,
+                // Fetch progress for each topic
+                const progressPromises = DEFAULT_TOPICS.map(async (topic) => {
+                    try {
+                        const { data } = await subtopicsAPI.getByTopic(topic.id);
+                        return {
+                            id: topic.id,
+                            name: topic.name,
+                            completed: data.completed || 0,
+                            total: data.total || topic.subtopicCount,
+                            mastery: data.progress || 0,
+                            prerequisites: topic.prerequisites,
+                        };
+                    } catch (err) {
+                        return {
+                            id: topic.id,
+                            name: topic.name,
+                            completed: 0,
+                            total: topic.subtopicCount,
+                            mastery: 0,
+                            prerequisites: topic.prerequisites,
+                        };
+                    }
                 });
+
+                const topicsData = await Promise.all(progressPromises);
+                
+                // Calculate overall progress
+                const totalCompleted = topicsData.reduce((sum, t) => sum + t.completed, 0);
+                const progress = TOTAL_SUBTOPICS > 0 ? Math.round((totalCompleted / TOTAL_SUBTOPICS) * 100) : 0;
+                
+                // Determine topic status based on completion and prerequisites
+                const topicsWithStatus = topicsData.map(topic => {
+                    let status = 'locked';
+                    
+                    if (topic.completed === topic.total && topic.total > 0) {
+                        status = 'completed';
+                    } else if (topic.completed > 0) {
+                        status = 'in-progress';
+                    } else if (topic.prerequisites.length === 0) {
+                        status = 'unlocked';
+                    } else {
+                        // Check if all prerequisites are completed
+                        const allPrereqsCompleted = topic.prerequisites.every(prereqId => {
+                            const prereq = topicsData.find(t => t.id === prereqId);
+                            return prereq && prereq.completed === prereq.total && prereq.total > 0;
+                        });
+                        if (allPrereqsCompleted) {
+                            status = 'unlocked';
+                        }
+                    }
+                    
+                    return { ...topic, status };
+                });
+
+                setTopicsProgress(topicsWithStatus);
+                setOverallProgress(progress);
+                setCompletedSubtopics(totalCompleted);
+            } catch (err) {
+                // Default to empty progress for new users
+                const emptyTopics = DEFAULT_TOPICS.map((topic, index) => ({
+                    id: topic.id,
+                    name: topic.name,
+                    completed: 0,
+                    total: topic.subtopicCount,
+                    mastery: 0,
+                    status: index === 0 ? 'unlocked' : 'locked',
+                    prerequisites: topic.prerequisites,
+                }));
+                setTopicsProgress(emptyTopics);
+                setOverallProgress(0);
+                setCompletedSubtopics(0);
             } finally {
                 setLoading(false);
             }
@@ -61,10 +128,24 @@ const Dashboard = () => {
         );
     }
 
+    // Find the current topic to continue (first in-progress or first unlocked)
+    const currentTopic = topicsProgress.find(t => t.status === 'in-progress') 
+        || topicsProgress.find(t => t.status === 'unlocked');
+
+    // Calculate knowledge gaps based on incomplete topics
+    const gaps = topicsProgress
+        .filter(t => t.status !== 'completed' && t.status !== 'locked')
+        .map(t => ({
+            topic: t.name,
+            deficiency: Math.round((1 - t.mastery) * 100)
+        }))
+        .filter(g => g.deficiency > 0)
+        .slice(0, 3);
+
     const stats = [
-        { label: 'Overall Mastery', value: `${roadmap?.overallProgress || 0}%`, color: 'var(--primary)' },
-        { label: 'Learning XP', value: roadmap?.xp?.toLocaleString() || '0', color: 'var(--secondary)' },
-        { label: 'Day Streak', value: `${roadmap?.streak || 0} 🔥`, color: 'var(--accent)' },
+        { label: 'Overall Mastery', value: `${overallProgress}%`, color: 'var(--primary)' },
+        { label: 'Subtopics Done', value: `${completedSubtopics}/${TOTAL_SUBTOPICS}`, color: 'var(--secondary)' },
+        { label: 'Topics Completed', value: `${topicsProgress.filter(t => t.status === 'completed').length}/${DEFAULT_TOPICS.length}`, color: 'var(--accent)' },
     ];
 
     return (
@@ -136,7 +217,7 @@ const Dashboard = () => {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {roadmap?.topics?.slice(0, 4).map((topic, i) => (
+                            {topicsProgress.slice(0, 4).map((topic, i) => (
                                 <TopicRow key={topic.id} topic={topic} index={i} />
                             ))}
                         </div>
@@ -190,45 +271,61 @@ const Dashboard = () => {
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                             <BarChart3 size={20} style={{ color: 'var(--warning)' }} />
-                            <h3>Knowledge Gaps</h3>
+                            <h3>Focus Areas</h3>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {roadmap?.gaps?.map((gap, i) => (
-                                <GapBar key={i} gap={gap} />
-                            ))}
-                        </div>
-                        <div style={{
-                            marginTop: '1.5rem',
-                            padding: '1rem',
-                            background: 'var(--surface-hover)',
-                            borderRadius: '0.75rem',
-                        }}>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                AI RECOMMENDATION
+                        {gaps.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {gaps.map((gap, i) => (
+                                    <GapBar key={i} gap={gap} />
+                                ))}
+                            </div>
+                        ) : (
+                            <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
+                                Start learning to see your focus areas!
                             </p>
-                            <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                                "Focus on Two Pointers technique before moving to Sliding Window problems."
-                            </p>
-                        </div>
+                        )}
+                        {overallProgress > 0 && (
+                            <div style={{
+                                marginTop: '1.5rem',
+                                padding: '1rem',
+                                background: 'var(--surface-hover)',
+                                borderRadius: '0.75rem',
+                            }}>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    AI RECOMMENDATION
+                                </p>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                                    {currentTopic 
+                                        ? `Continue with "${currentTopic.name}" to maintain your progress.`
+                                        : 'Great job! Keep up the learning momentum!'
+                                    }
+                                </p>
+                            </div>
+                        )}
                     </motion.section>
 
                     {/* Next Up */}
-                    <motion.section
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="glass-card"
-                        style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(0, 0, 0, 0.5))' }}
-                    >
-                        <TrendingUp size={24} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
-                        <h3 style={{ marginBottom: '0.5rem' }}>Continue Learning</h3>
-                        <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                            Pick up where you left off with Linked Lists
-                        </p>
-                        <Link to="/resources/2" className="btn-primary w-full">
-                            Resume <ArrowRight size={18} />
-                        </Link>
-                    </motion.section>
+                    {currentTopic && (
+                        <motion.section
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.4 }}
+                            className="glass-card"
+                            style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(0, 0, 0, 0.5))' }}
+                        >
+                            <TrendingUp size={24} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
+                            <h3 style={{ marginBottom: '0.5rem' }}>Continue Learning</h3>
+                            <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                                {currentTopic.completed > 0 
+                                    ? `Pick up where you left off with ${currentTopic.name}`
+                                    : `Start learning ${currentTopic.name}`
+                                }
+                            </p>
+                            <Link to={`/resources/${currentTopic.id}`} className="btn-primary w-full">
+                                {currentTopic.completed > 0 ? 'Resume' : 'Start'} <ArrowRight size={18} />
+                            </Link>
+                        </motion.section>
+                    )}
                 </div>
             </div>
         </div>
@@ -280,7 +377,7 @@ const TopicRow = ({ topic, index }) => {
                             <div className="progress-fill" style={{ width: `${topic.mastery * 100}%` }} />
                         </div>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                            {Math.round(topic.mastery * 100)}%
+                            {topic.completed}/{topic.total}
                         </span>
                     </div>
                 )}
@@ -305,16 +402,16 @@ const GapBar = ({ gap }) => {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>{gap.topic}</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color }}>{gap.deficiency}% gap</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color }}>{gap.deficiency}% remaining</span>
             </div>
             <div className="progress-bar">
                 <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${gap.deficiency}%` }}
+                    animate={{ width: `${100 - gap.deficiency}%` }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                     style={{
                         height: '100%',
-                        background: color,
+                        background: 'var(--success)',
                         borderRadius: '999px',
                     }}
                 />

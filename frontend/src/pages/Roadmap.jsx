@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,7 +9,7 @@ import { useUser } from '../context/UserContext';
 import { roadmapAPI, topicsAPI, subtopicsAPI } from '../api/client';
 
 const Roadmap = () => {
-    const { user } = useUser();
+    const { user, loading: userLoading } = useUser();
     const navigate = useNavigate();
     const [roadmap, setRoadmap] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -17,15 +17,16 @@ const Roadmap = () => {
     const [subtopicsData, setSubtopicsData] = useState({});
     const [loadingSubtopics, setLoadingSubtopics] = useState({});
 
-    const sampleRoadmap = {
+    // Default roadmap with all topics starting at 0% - first topic unlocked, rest locked
+    const getInitialRoadmap = useCallback(() => ({
         subject: 'Data Structures & Algorithms',
         topics: [
             {
                 id: 1,
                 name: 'Arrays & Strings',
                 description: 'Foundation of DSA - contiguous memory, indexing, string manipulation',
-                mastery: 0.75,
-                status: 'completed',
+                mastery: 0,
+                status: 'unlocked',
                 prerequisites: [],
                 resources: { videos: 3, notes: 1, problems: 6 },
             },
@@ -33,8 +34,8 @@ const Roadmap = () => {
                 id: 2,
                 name: 'Linked Lists',
                 description: 'Dynamic data structures with node-based storage',
-                mastery: 0.45,
-                status: 'in-progress',
+                mastery: 0,
+                status: 'locked',
                 prerequisites: [1],
                 resources: { videos: 2, notes: 1, problems: 6 },
             },
@@ -43,7 +44,7 @@ const Roadmap = () => {
                 name: 'Stacks & Queues',
                 description: 'LIFO and FIFO data structures for ordered operations',
                 mastery: 0,
-                status: 'unlocked',
+                status: 'locked',
                 prerequisites: [1, 2],
                 resources: { videos: 2, notes: 1, problems: 6 },
             },
@@ -93,9 +94,68 @@ const Roadmap = () => {
                 resources: { videos: 2, notes: 2, problems: 6 },
             },
         ],
+    }), []);
+
+    // Subtopic counts per topic (matches backend DEFAULT_SUBTOPICS)
+    const SUBTOPIC_COUNTS = {
+        1: 7, // Arrays & Strings
+        2: 6, // Linked Lists
+        3: 6, // Stacks & Queues
+        4: 6, // Recursion & Backtracking
+        5: 6, // Trees & BST
+        6: 7, // Graphs
+        7: 6, // Sorting Algorithms
+        8: 7, // Dynamic Programming
     };
 
+    const TOTAL_SUBTOPICS = Object.values(SUBTOPIC_COUNTS).reduce((a, b) => a + b, 0);
+
+    // Recalculate topic statuses based on completion and prerequisites
+    const recalculateTopicStatuses = useCallback((topics, subtopicsDataMap) => {
+        return topics.map(topic => {
+            const topicSubtopics = subtopicsDataMap[topic.id];
+            let newStatus = topic.status;
+            let newMastery = topic.mastery;
+
+            // Check if topic is completed based on subtopics
+            if (topicSubtopics) {
+                const completed = topicSubtopics.completed || 0;
+                const total = topicSubtopics.total || SUBTOPIC_COUNTS[topic.id] || 1;
+                newMastery = total > 0 ? completed / total : 0;
+
+                if (completed === total && total > 0) {
+                    newStatus = 'completed';
+                } else if (completed > 0) {
+                    newStatus = 'in-progress';
+                }
+            }
+
+            // Check if topic should be unlocked based on prerequisites
+            if (newStatus === 'locked' && topic.prerequisites.length > 0) {
+                const allPrereqsCompleted = topic.prerequisites.every(prereqId => {
+                    const prereqTopic = topics.find(t => t.id === prereqId);
+                    const prereqSubtopics = subtopicsDataMap[prereqId];
+                    if (prereqSubtopics) {
+                        return prereqSubtopics.completed === prereqSubtopics.total && prereqSubtopics.total > 0;
+                    }
+                    return prereqTopic?.status === 'completed';
+                });
+                if (allPrereqsCompleted) {
+                    newStatus = 'unlocked';
+                }
+            } else if (newStatus === 'locked' && topic.prerequisites.length === 0) {
+                // First topic with no prerequisites should always be unlocked
+                newStatus = 'unlocked';
+            }
+
+            return { ...topic, status: newStatus, mastery: newMastery };
+        });
+    }, [SUBTOPIC_COUNTS]);
+
     useEffect(() => {
+        // Wait for UserContext to finish loading before checking auth
+        if (userLoading) return;
+        
         if (!user) {
             navigate('/login');
             return;
@@ -104,16 +164,20 @@ const Roadmap = () => {
         const fetchRoadmap = async () => {
             try {
                 const { data } = await roadmapAPI.get();
-                setRoadmap(data);
+                // Still use initial roadmap structure but apply any saved progress
+                const initialRoadmap = getInitialRoadmap();
+                setRoadmap(initialRoadmap);
             } catch (err) {
-                // Check if quiz was skipped - all topics start unlocked
+                // Check if quiz was skipped - all topics start unlocked from basics
                 const skippedQuiz = localStorage.getItem('skippedQuiz');
+                const initialRoadmap = getInitialRoadmap();
+                
                 if (skippedQuiz) {
-                    const unlocked = sampleRoadmap.topics.map(t => ({ ...t, status: 'unlocked', mastery: 0 }));
-                    setRoadmap({ ...sampleRoadmap, topics: unlocked });
+                    // When skipping quiz, only first topic is unlocked, start from 0%
+                    setRoadmap(initialRoadmap);
                     localStorage.removeItem('skippedQuiz');
                 } else {
-                    setRoadmap(sampleRoadmap);
+                    setRoadmap(initialRoadmap);
                 }
             } finally {
                 setLoading(false);
@@ -121,7 +185,19 @@ const Roadmap = () => {
         };
 
         fetchRoadmap();
-    }, [user, navigate]);
+    }, [user, userLoading, navigate, getInitialRoadmap]);
+
+    // Update roadmap when subtopicsData changes
+    useEffect(() => {
+        if (roadmap && Object.keys(subtopicsData).length > 0) {
+            const updatedTopics = recalculateTopicStatuses(roadmap.topics, subtopicsData);
+            // Only update if there's an actual change to avoid infinite loops
+            const hasChanged = JSON.stringify(updatedTopics) !== JSON.stringify(roadmap.topics);
+            if (hasChanged) {
+                setRoadmap(prev => ({ ...prev, topics: updatedTopics }));
+            }
+        }
+    }, [subtopicsData, recalculateTopicStatuses]);
 
     const fetchSubtopics = async (topicId) => {
         if (subtopicsData[topicId]) return;
@@ -147,21 +223,23 @@ const Roadmap = () => {
         }
     };
 
-    const handleToggleSubtopic = async (subtopicId, currentCompleted) => {
+    const handleToggleSubtopic = async (subtopicId, currentCompleted, topicId) => {
         try {
             await subtopicsAPI.toggleComplete(subtopicId, !currentCompleted);
-            // Update local state
+            
+            // Update local subtopicsData state
             setSubtopicsData(prev => {
                 const updated = { ...prev };
-                for (const topicId in updated) {
+                if (updated[topicId]) {
+                    const updatedSubtopics = updated[topicId].subtopics.map(st =>
+                        st.id === subtopicId ? { ...st, completed: !currentCompleted } : st
+                    );
+                    const completedCount = updatedSubtopics.filter(st => st.completed).length;
+                    
                     updated[topicId] = {
                         ...updated[topicId],
-                        subtopics: updated[topicId].subtopics.map(st =>
-                            st.id === subtopicId ? { ...st, completed: !currentCompleted } : st
-                        ),
-                        completed: updated[topicId].subtopics.filter(st => 
-                            st.id === subtopicId ? !currentCompleted : st.completed
-                        ).length,
+                        subtopics: updatedSubtopics,
+                        completed: completedCount,
                     };
                 }
                 return updated;
@@ -171,7 +249,7 @@ const Roadmap = () => {
         }
     };
 
-    if (loading) {
+    if (loading || userLoading) {
         return (
             <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -182,9 +260,21 @@ const Roadmap = () => {
         );
     }
 
-    const completedCount = roadmap?.topics?.filter(t => t.status === 'completed').length || 0;
-    const totalCount = roadmap?.topics?.length || 0;
-    const overallProgress = (completedCount / totalCount) * 100;
+    // Calculate overall progress from completed subtopics across all topics
+    const calculateOverallProgress = () => {
+        let totalCompleted = 0;
+        let totalSubtopics = TOTAL_SUBTOPICS;
+
+        Object.values(subtopicsData).forEach(topicData => {
+            totalCompleted += topicData.completed || 0;
+        });
+
+        return totalSubtopics > 0 ? (totalCompleted / totalSubtopics) * 100 : 0;
+    };
+
+    const completedTopicsCount = roadmap?.topics?.filter(t => t.status === 'completed').length || 0;
+    const totalTopicsCount = roadmap?.topics?.length || 0;
+    const overallProgress = calculateOverallProgress();
 
     return (
         <div className="page-container">
@@ -201,7 +291,7 @@ const Roadmap = () => {
                     <p>{roadmap?.subject}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '2rem', fontWeight: 900 }}>{completedCount}/{totalCount}</p>
+                    <p style={{ fontSize: '2rem', fontWeight: 900 }}>{completedTopicsCount}/{totalTopicsCount}</p>
                     <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Topics Mastered</p>
                 </div>
             </motion.header>
@@ -248,7 +338,7 @@ const Roadmap = () => {
                         onToggle={() => handleToggleExpand(topic.id)}
                         subtopicsData={subtopicsData[topic.id]}
                         loadingSubtopics={loadingSubtopics[topic.id]}
-                        onToggleSubtopic={handleToggleSubtopic}
+                        onToggleSubtopic={(subtopicId, completed) => handleToggleSubtopic(subtopicId, completed, topic.id)}
                     />
                 ))}
             </div>

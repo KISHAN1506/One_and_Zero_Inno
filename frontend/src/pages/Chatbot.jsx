@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Send, Bot, User, Sparkles, BookOpen } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { chatAPI } from '../api/client';
+import ReactMarkdown from 'react-markdown';
 
 const Chatbot = () => {
     const { user } = useUser();
@@ -60,8 +61,10 @@ const Chatbot = () => {
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: msg.role === 'user' ? 'var(--primary)' : 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 {msg.role === 'user' ? <User size={18} color="white" /> : <Bot size={18} color="white" />}
                             </div>
-                            <div style={{ maxWidth: '70%', background: msg.role === 'user' ? 'var(--primary)' : 'var(--surface-hover)', padding: '1rem 1.25rem', borderRadius: '1rem', color: msg.role === 'user' ? 'white' : 'var(--text)' }}>
-                                <p style={{ lineHeight: 1.6 }}>{msg.content}</p>
+                            <div className={`chat-bubble ${msg.role === 'user' ? 'msg-user' : 'msg-ai'}`} style={{ maxWidth: '70%', background: msg.role === 'user' ? 'var(--primary)' : 'var(--surface-hover)', padding: '1rem 1.25rem', borderRadius: '1rem', color: msg.role === 'user' ? 'white' : 'var(--text)' }}>
+                                <div className="markdown-content">
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
                                 {msg.sources && (
                                     <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
                                         <BookOpen size={12} style={{ display: 'inline', marginRight: '4px' }} /> Sources: {msg.sources.join(', ')}

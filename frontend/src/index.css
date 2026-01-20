@@ -11,6 +11,9 @@
 
   /* Dark Mode (Default) */
   --background: #020617;
+
+@import './markdown.css';
+
   --surface: rgba(15, 23, 42, 0.6);
   --surface-hover: rgba(30, 41, 59, 0.8);
   --surface-solid: #0f172a;

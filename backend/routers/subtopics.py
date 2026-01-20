@@ -83,17 +83,48 @@ DEFAULT_SUBTOPICS = {
     ],
 }
 
+from fastapi import Header
+
+def get_optional_user(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """Get current user from token if provided, otherwise return None"""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    token = authorization.replace("Bearer ", "")
+    try:
+        from jose import jwt
+        from config import get_settings
+        settings = get_settings()
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        email = payload.get("sub")
+        if email:
+            return db.query(User).filter(User.email == email).first()
+    except:
+        pass
+    return None
+
 @router.get("/{topic_id}")
 async def get_subtopics(
     topic_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
 ):
     """Get subtopics for a topic with completion status"""
     subtopics = DEFAULT_SUBTOPICS.get(topic_id, [])
     
-    # Completion status requires authentication - returning all as incomplete for public view
-    # Frontend should use authenticated endpoints for user-specific progress
+    # Try to get user-specific completion status
     completed_ids = set()
+    current_user = get_optional_user(authorization, db)
+    
+    if current_user:
+        # Fetch user's completed subtopics for this topic
+        subtopic_ids = [st["id"] for st in subtopics]
+        completed_records = db.query(SubtopicProgress).filter(
+            SubtopicProgress.user_id == current_user.id,
+            SubtopicProgress.subtopic_id.in_(subtopic_ids),
+            SubtopicProgress.completed == True
+        ).all()
+        completed_ids = {r.subtopic_id for r in completed_records}
     
     result = []
     for st in subtopics:
@@ -140,10 +171,42 @@ async def toggle_subtopic_completion(
     
     db.commit()
     
+    # Find which topic this subtopic belongs to
+    topic_id = None
+    for tid, subtopics in DEFAULT_SUBTOPICS.items():
+        if any(st["id"] == subtopic_id for st in subtopics):
+            topic_id = tid
+            break
+    
+    # Calculate if the topic is now fully completed
+    topic_completed = False
+    completed_count = 0
+    total_count = 0
+    
+    if topic_id:
+        topic_subtopics = DEFAULT_SUBTOPICS.get(topic_id, [])
+        total_count = len(topic_subtopics)
+        
+        # Get all completed subtopics for this topic
+        subtopic_ids = [st["id"] for st in topic_subtopics]
+        completed_records = db.query(SubtopicProgress).filter(
+            SubtopicProgress.user_id == current_user.id,
+            SubtopicProgress.subtopic_id.in_(subtopic_ids),
+            SubtopicProgress.completed == True
+        ).all()
+        completed_count = len(completed_records)
+        topic_completed = completed_count == total_count and total_count > 0
+    
     return {
         "subtopic_id": subtopic_id,
         "completed": request.completed,
-        "message": "Subtopic marked as complete" if request.completed else "Subtopic marked as incomplete"
+        "message": "Subtopic marked as complete" if request.completed else "Subtopic marked as incomplete",
+        "topic_id": topic_id,
+        "topic_completed": topic_completed,
+        "topic_progress": {
+            "completed": completed_count,
+            "total": total_count
+        }
     }
 
 @router.get("/user/progress")

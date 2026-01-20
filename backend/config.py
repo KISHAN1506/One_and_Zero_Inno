@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     database_url: str = "sqlite:///./learnpath.db"
+    gemini_api_key: str = ""  # Set via GEMINI_API_KEY in .env file
 
     class Config:
         env_file = ".env"
