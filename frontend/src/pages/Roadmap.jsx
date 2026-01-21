@@ -28,7 +28,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'unlocked',
                 prerequisites: [],
-                resources: { videos: 3, notes: 1, problems: 6 },
+                resources: { videos: 7, notes: 1, problems: 6 },
             },
             {
                 id: 2,
@@ -37,7 +37,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [1],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 6, notes: 1, problems: 6 },
             },
             {
                 id: 3,
@@ -46,7 +46,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [1, 2],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 6, notes: 1, problems: 6 },
             },
             {
                 id: 4,
@@ -55,7 +55,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [3],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 6, notes: 1, problems: 6 },
             },
             {
                 id: 5,
@@ -64,7 +64,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 6, notes: 1, problems: 6 },
             },
             {
                 id: 6,
@@ -73,7 +73,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [5],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 7, notes: 1, problems: 6 },
             },
             {
                 id: 7,
@@ -82,7 +82,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4],
-                resources: { videos: 2, notes: 1, problems: 6 },
+                resources: { videos: 6, notes: 1, problems: 6 },
             },
             {
                 id: 8,
@@ -91,7 +91,7 @@ const Roadmap = () => {
                 mastery: 0,
                 status: 'locked',
                 prerequisites: [4, 7],
-                resources: { videos: 2, notes: 2, problems: 6 },
+                resources: { videos: 7, notes: 1, problems: 6 },
             },
         ],
     }), []);
@@ -575,11 +575,17 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
                                         </div>
 
                                         {st.video_url && (
-                                            <a
-                                                href={st.video_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const params = new URLSearchParams({
+                                                        url: st.video_url,
+                                                        title: st.name,
+                                                        subtopic: st.name,
+                                                        topicId: topic.id.toString(),
+                                                    });
+                                                    window.location.href = `/video?${params.toString()}`;
+                                                }}
                                                 style={{
                                                     padding: '0.5rem',
                                                     borderRadius: '50%',
@@ -589,11 +595,14 @@ const TopicCard = ({ topic, index, expanded, onToggle, subtopicsData, loadingSub
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     marginLeft: '0.5rem',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease',
                                                 }}
                                                 title="Watch explanatory video"
                                             >
                                                 <Play size={16} fill="currentColor" />
-                                            </a>
+                                            </button>
                                         )}
                                     </div>
                                 ))}

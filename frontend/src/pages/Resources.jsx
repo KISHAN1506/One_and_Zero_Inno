@@ -87,63 +87,80 @@ const Resources = () => {
     useEffect(() => {
         if (notesData.user_notes && notesData.user_notes.length > 0) {
             localStorage.setItem(`user_notes_topic_${topicId}`, JSON.stringify(notesData.user_notes));
+        } else if (notesData.user_notes && notesData.user_notes.length === 0) {
+            // Clear localStorage if all notes are deleted
+            localStorage.removeItem(`user_notes_topic_${topicId}`);
         }
     }, [notesData.user_notes, topicId]);
 
+    const [isAddingNote, setIsAddingNote] = useState(false);
+
     const handleAddNote = async () => {
-        if (!newNote.trim()) return;
+        if (!newNote.trim() || isAddingNote) return;
 
-        // Create a temporary note object for immediate UI update
-        const tempNote = {
-            id: Date.now(), // Temporary ID
-            content: newNote,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        };
-
-        // Immediately update UI and localStorage
-        const updatedNotes = [tempNote, ...notesData.user_notes];
-        setNotesData(prev => ({ ...prev, user_notes: updatedNotes }));
-        localStorage.setItem(`user_notes_topic_${topicId}`, JSON.stringify(updatedNotes));
-        setNewNote('');
+        setIsAddingNote(true);
+        const noteContent = newNote.trim();
+        setNewNote(''); // Clear input immediately for better UX
 
         try {
-            // Try to save to backend
-            const { data } = await notesAPI.create(parseInt(topicId), tempNote.content);
-            // Update with real ID from server
+            // Wait for server response instead of optimistic update
+            const { data } = await notesAPI.create(parseInt(topicId), noteContent);
+
+            // Add the new note from server (with real ID)
             setNotesData(prev => ({
                 ...prev,
-                user_notes: prev.user_notes.map(n => n.id === tempNote.id ? data : n)
+                user_notes: [data, ...prev.user_notes]
             }));
         } catch (err) {
-            console.error('Failed to save note to server, but saved locally:', err);
+            console.error('Failed to save note to server:', err);
+            // Restore the input on error
+            setNewNote(noteContent);
+            alert('Failed to save note. Please try again.');
+        } finally {
+            setIsAddingNote(false);
         }
     };
 
     const handleUpdateNote = async (noteId) => {
+        if (!editingContent.trim()) return;
+
+        const originalNotes = [...notesData.user_notes];
+
+        // Optimistic update for edit
+        setNotesData(prev => ({
+            ...prev,
+            user_notes: prev.user_notes.map(n =>
+                n.id === noteId ? { ...n, content: editingContent } : n
+            )
+        }));
+        setEditingNoteId(null);
+
         try {
             await notesAPI.update(noteId, editingContent);
-            setNotesData(prev => ({
-                ...prev,
-                user_notes: prev.user_notes.map(n =>
-                    n.id === noteId ? { ...n, content: editingContent } : n
-                )
-            }));
-            setEditingNoteId(null);
         } catch (err) {
             console.error('Failed to update note:', err);
+            // Rollback on error
+            setNotesData(prev => ({ ...prev, user_notes: originalNotes }));
+            alert('Failed to update note. Please try again.');
         }
     };
 
     const handleDeleteNote = async (noteId) => {
+        const originalNotes = [...notesData.user_notes];
+
+        // Optimistic delete
+        setNotesData(prev => ({
+            ...prev,
+            user_notes: prev.user_notes.filter(n => n.id !== noteId)
+        }));
+
         try {
             await notesAPI.delete(noteId);
-            setNotesData(prev => ({
-                ...prev,
-                user_notes: prev.user_notes.filter(n => n.id !== noteId)
-            }));
         } catch (err) {
             console.error('Failed to delete note:', err);
+            // Rollback on error
+            setNotesData(prev => ({ ...prev, user_notes: originalNotes }));
+            alert('Failed to delete note. Please try again.');
         }
     };
 
@@ -318,11 +335,15 @@ const Resources = () => {
                             />
                             <button
                                 onClick={handleAddNote}
-                                disabled={!newNote.trim()}
+                                disabled={!newNote.trim() || isAddingNote}
                                 className="btn-primary btn-small"
-                                style={{ marginTop: '0.75rem' }}
+                                style={{ marginTop: '0.75rem', opacity: isAddingNote ? 0.7 : 1 }}
                             >
-                                <Plus size={16} /> Add Note
+                                {isAddingNote ? (
+                                    <>Adding...</>
+                                ) : (
+                                    <><Plus size={16} /> Add Note</>
+                                )}
                             </button>
                         </div>
 

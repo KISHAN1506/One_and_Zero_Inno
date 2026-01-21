@@ -176,7 +176,7 @@ const Assessment = () => {
     // Results screen
     if (showResult && results) {
         const showAnalysis = results.incorrectQuestions && results.incorrectQuestions.length > 0;
-        
+
         return (
             <div className="page-container" style={{ maxWidth: '900px', margin: '0 auto' }}>
                 <motion.div
@@ -246,9 +246,9 @@ const Assessment = () => {
                             </h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
                                 {results.incorrectQuestions.map((q, i) => (
-                                    <div key={i} style={{ 
-                                        padding: '1rem', 
-                                        background: 'var(--surface)', 
+                                    <div key={i} style={{
+                                        padding: '1rem',
+                                        background: 'var(--surface)',
                                         borderRadius: '0.75rem',
                                         borderLeft: '4px solid var(--error)'
                                     }}>
@@ -256,6 +256,38 @@ const Assessment = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                                             <p style={{ color: 'var(--error)' }}>
                                                 ❌ Your answer: <strong>{q.your_answer}</strong>
+                                            </p>
+                                            <p style={{ color: 'var(--success)' }}>
+                                                ✓ Correct answer: <strong>{q.correct_answer}</strong>
+                                            </p>
+                                        </div>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
+                                            Topic: {q.topic}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Skipped Questions Display */}
+                    {results.skippedQuestions && results.skippedQuestions.length > 0 && (
+                        <div style={{ textAlign: 'left', marginBottom: '2rem', padding: '1.5rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '1rem', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                            <h3 style={{ marginBottom: '1rem', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <SkipForward size={20} /> Skipped Questions ({results.skippedQuestions.length})
+                            </h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
+                                {results.skippedQuestions.map((q, i) => (
+                                    <div key={i} style={{
+                                        padding: '1rem',
+                                        background: 'var(--surface)',
+                                        borderRadius: '0.75rem',
+                                        borderLeft: '4px solid var(--warning)'
+                                    }}>
+                                        <p style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.95rem' }}>{q.question}</p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
+                                            <p style={{ color: 'var(--warning)' }}>
+                                                ⏭️ Skipped
                                             </p>
                                             <p style={{ color: 'var(--success)' }}>
                                                 ✓ Correct answer: <strong>{q.correct_answer}</strong>

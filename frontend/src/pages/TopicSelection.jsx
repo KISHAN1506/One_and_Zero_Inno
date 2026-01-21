@@ -15,7 +15,7 @@ const TopicSelection = () => {
     useEffect(() => {
         // Wait for UserContext to finish loading before checking auth
         if (userLoading) return;
-        
+
         if (!user) {
             navigate('/login');
             return;
@@ -46,8 +46,8 @@ const TopicSelection = () => {
     }, [user, userLoading, navigate]);
 
     const toggleTopic = (topicId) => {
-        setSelectedTopics(prev => 
-            prev.includes(topicId) 
+        setSelectedTopics(prev =>
+            prev.includes(topicId)
                 ? prev.filter(id => id !== topicId)
                 : [...prev, topicId]
         );
@@ -99,8 +99,8 @@ const TopicSelection = () => {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
                 className="glass-card"
-                style={{ 
-                    marginBottom: '2rem', 
+                style={{
+                    marginBottom: '2rem',
                     padding: '1rem 1.5rem',
                     display: 'flex',
                     alignItems: 'center',
@@ -113,7 +113,7 @@ const TopicSelection = () => {
                     <BookOpen size={20} style={{ color: 'var(--primary)' }} />
                     <span>New to DSA? Start from the basics!</span>
                 </div>
-                <button 
+                <button
                     onClick={handleSkipAndStartBasics}
                     className="btn-secondary btn-small"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -123,9 +123,9 @@ const TopicSelection = () => {
             </motion.div>
 
             {/* Topic Grid */}
-            <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                 gap: '1rem',
                 marginBottom: '2rem'
             }}>
@@ -181,39 +181,44 @@ const TopicSelection = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                style={{ 
-                    display: 'flex', 
-                    justifyContent: 'center', 
+                style={{
+                    display: 'flex',
+                    justifyContent: 'center',
                     gap: '1rem',
                     position: 'sticky',
                     bottom: '2rem',
-                    padding: '1rem',
-                    background: 'linear-gradient(transparent, var(--background) 30%)',
+                    padding: '1.5rem 2rem',
+                    background: 'var(--surface)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    borderRadius: '1.5rem',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
                 }}
             >
                 <button
                     onClick={handleContinueToQuiz}
                     disabled={selectedTopics.length === 0}
                     className="btn-primary"
-                    style={{ 
+                    style={{
                         padding: '1rem 2rem',
                         fontSize: '1rem',
                         opacity: selectedTopics.length === 0 ? 0.5 : 1,
                     }}
                 >
-                    {selectedTopics.length === 0 
-                        ? 'Select topics to continue' 
+                    {selectedTopics.length === 0
+                        ? 'Select topics to continue'
                         : `Take Quiz on ${selectedTopics.length} topic${selectedTopics.length > 1 ? 's' : ''}`
                     }
                     <ArrowRight size={20} style={{ marginLeft: '0.5rem' }} />
                 </button>
             </motion.div>
 
-            <p style={{ 
-                textAlign: 'center', 
-                color: 'var(--text-dim)', 
+            <p style={{
+                textAlign: 'center',
+                color: 'var(--text-dim)',
                 fontSize: '0.875rem',
-                marginTop: '1rem' 
+                marginTop: '1rem'
             }}>
                 {selectedTopics.length} of {topics.length} topics selected
             </p>

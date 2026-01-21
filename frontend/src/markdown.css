@@ -83,14 +83,31 @@
 
 /* Light mode styles */
 [data-theme="light"] .markdown-content code {
-  background: rgba(139, 92, 246, 0.1);
-  color: #1a1a2e;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(6, 182, 212, 0.08));
+  color: #5a4fcf;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  font-weight: 500;
 }
 
 [data-theme="light"] .markdown-content pre {
-  background: #282c34;
+  background: linear-gradient(180deg, #1e2030 0%, #161822 100%);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+[data-theme="light"] .markdown-content pre::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  border-radius: 8px 8px 0 0;
 }
 
 [data-theme="light"] .markdown-content pre code {
-  color: #abb2bf;
+  color: #e4e6eb;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }

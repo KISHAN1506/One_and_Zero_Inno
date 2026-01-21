@@ -13,6 +13,7 @@ import Roadmap from './pages/Roadmap';
 import Resources from './pages/Resources';
 import Chatbot from './pages/Chatbot';
 import QuizHistory from './pages/QuizHistory';
+import VideoPlayer from './pages/VideoPlayer';
 
 function App() {
     return (
@@ -34,6 +35,7 @@ function App() {
                             <Route path="/quiz-history" element={<QuizHistory />} />
                             <Route path="/roadmap" element={<Roadmap />} />
                             <Route path="/resources/:topicId" element={<Resources />} />
+                            <Route path="/video" element={<VideoPlayer />} />
                             <Route path="/chat" element={<Chatbot />} />
                         </Routes>
                     </div>

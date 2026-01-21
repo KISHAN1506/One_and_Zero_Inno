@@ -97,6 +97,7 @@ async def submit_assessment(
     # Build detailed question report
     detailed_report = []
     incorrect_questions = []
+    skipped_questions = []
     
     # Filter to only questions that were shown (if provided)
     questions_to_check = QUESTION_BANK
@@ -128,6 +129,12 @@ async def submit_assessment(
             topic_scores[topic]["skipped"] += 1
             skipped_count += 1
             question_report["is_skipped"] = True
+            skipped_questions.append({
+                "id": q["id"],
+                "topic": topic,
+                "question": q["text"],
+                "correct_answer": q["options"][q["correct"]]
+            })
         elif qid in answers:
             user_answer = answers[qid]
             is_correct = user_answer == q["correct"]
@@ -208,6 +215,7 @@ async def submit_assessment(
         "correctCount": total_correct,
         "incorrectCount": total_answered - total_correct,
         "incorrectQuestions": incorrect_questions,
+        "skippedQuestions": skipped_questions,
         "detailedReport": detailed_report
     }
 
