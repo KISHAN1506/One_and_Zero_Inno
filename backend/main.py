@@ -7,7 +7,7 @@ from routers import auth, topics, assessment, roadmap, resources, chat, notes, s
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="LearnPath API",
+    title="ZeroToOne API",
     description="AI-Driven Personalized Learning Assistant for DSA",
     version="1.0.0"
 )
@@ -33,4 +33,4 @@ app.include_router(recommendation.router)
 
 @app.get("/")
 async def root():
-    return {"message": "LearnPath API", "docs": "/docs"}
+    return {"message": "ZeroToOne API", "docs": "/docs"}

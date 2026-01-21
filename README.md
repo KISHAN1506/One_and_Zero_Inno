@@ -1,4 +1,4 @@
-# LearnPath - AI-Driven Personalized Learning Assistant
+# ZeroToOne - AI-Driven Personalized Learning Assistant
 
 > PS12 Hackathon Project | Track: AIML
 
